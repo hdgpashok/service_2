@@ -13,6 +13,6 @@ router = APIRouter(
 )
 
 
-@router.get("/users/{user_id}")
-async def get_users(user_id: UUID, session: SessionDep) -> UserOut:
-    pass
+@router.get('/')
+async def hello_world():
+    return 'Hello world'

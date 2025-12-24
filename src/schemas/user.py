@@ -1,6 +1,18 @@
+from uuid import UUID
+
+from pydantic import ConfigDict
+
+from src.schemas.profile import ProfileOut
+
+
 class UserBase:
-    pass
+    id: UUID
+    first_name: str
+    last_name: str
+    title: str
 
 
 class UserOut(UserBase):
-    pass
+    profile: ProfileOut
+
+    model_config = ConfigDict(from_attributes=True)
