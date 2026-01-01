@@ -1,15 +1,27 @@
 from uuid import UUID
 
-from pydantic import ConfigDict
+from pydantic import BaseModel, ConfigDict
 
 
-class ProfileBase:
+class ProfileBase(BaseModel):
     title: str
     bio: str
     nickname: str
 
 
 class ProfileOut(ProfileBase):
-    user_id: UUID
+    id: UUID
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ProfileCreate(ProfileBase):
+    pass
+
+
+class ProfileInternal:
+    id: UUID
+    title: str
+    bio: str
 
     model_config = ConfigDict(from_attributes=True)
