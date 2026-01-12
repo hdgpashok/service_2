@@ -4,8 +4,6 @@ from pydantic import BaseModel, ConfigDict
 
 
 class ProfileBase(BaseModel):
-    title: str
-    bio: str
     nickname: str
 
 
@@ -16,7 +14,8 @@ class ProfileOut(ProfileBase):
 
 
 class ProfileCreate(ProfileBase):
-    pass
+    title: str
+    bio: str
 
 
 class ProfileExternal(BaseModel):

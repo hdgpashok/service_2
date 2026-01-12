@@ -1,4 +1,3 @@
-import uuid
 from uuid import UUID
 
 from sqlalchemy import select
@@ -11,7 +10,7 @@ from src.models.user import UserModel
 
 from src.models.profile import ProfileModel
 
-from src.schemas.user import UserCreate, UserOut, UserExternal
+from src.schemas.user import UserCreate, UserOut
 
 
 class UserRepository:
@@ -36,7 +35,7 @@ class UserRepository:
             user_id: UUID,
             profile_id: UUID,
             session: AsyncSession) -> UserOut:
-        new_profile = ProfileModel(**user.profile.model_dump(), id=profile_id)
+        new_profile = ProfileModel(**user.profile.model_dump(exclude={'title', 'bio'}), id=profile_id)
 
         new_user = UserModel(id=user_id,  profile=new_profile)
         user_data = user.model_dump(exclude={'profile'})

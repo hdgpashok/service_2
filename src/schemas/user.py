@@ -8,7 +8,6 @@ from src.schemas.profile import ProfileOut, ProfileCreate, ProfileExternal
 class UserBase(BaseModel):
     first_name: str
     last_name: str
-    title: str
 
 
 class UserOut(UserBase):
@@ -19,6 +18,7 @@ class UserOut(UserBase):
 
 
 class UserCreate(UserBase):
+    title: str
     profile: ProfileCreate
 
     model_config = ConfigDict(from_attributes=True)

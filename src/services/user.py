@@ -3,11 +3,9 @@ import uuid
 import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models.user import UserModel
-from src.models.profile import ProfileModel
 from src.schemas.profile import ProfileExternal
 from src.repository.user import UserRepository
-from src.schemas.user import UserCreate, UserOut, UserExternal
+from src.schemas.user import UserCreate, UserExternal
 
 
 class UserService:
