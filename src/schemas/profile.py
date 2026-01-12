@@ -19,7 +19,7 @@ class ProfileCreate(ProfileBase):
     pass
 
 
-class ProfileInternal:
+class ProfileExternal(BaseModel):
     id: UUID
     title: str
     bio: str

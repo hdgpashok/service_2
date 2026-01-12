@@ -22,5 +22,5 @@ async def hello_world():
 
 
 @router.post('/users', status_code=HTTP_201_CREATED)
-async def create_user(user: UserCreate, session: SessionDep) -> UserOut:
+async def create_user(user: UserCreate, session: SessionDep):
     return await UserService.create_user(user, session)
