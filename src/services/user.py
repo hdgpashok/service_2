@@ -1,11 +1,13 @@
+import json
 import uuid
 
 import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.schemas.profile import ProfileExternal
+from src.repository.profile import ProfileRepository
+from src.schemas.profile import ProfileExternal, ProfileOut, ProfileJoined
 from src.repository.user import UserRepository
-from src.schemas.user import UserCreate, UserExternal
+from src.schemas.user import UserCreate, UserExternal, UserJoined, UserOut
 
 
 class UserService:
@@ -37,3 +39,36 @@ class UserService:
             )
         else:
             return {'error': 'error'}
+
+    @staticmethod
+    async def get_user(user_id: uuid.UUID, session: AsyncSession):
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(f'http://localhost:8000/api/v1/users_profiles/users/{user_id}')
+
+        external_user_data = resp.json()
+
+        internal_user_orm = await UserRepository.select(user_id, session)
+        internal_user = UserOut.model_validate(internal_user_orm)
+
+        external_profile = resp.json()['profile']
+        internal_profile_orm = await ProfileRepository.select(external_profile['id'], session)
+        internal_profile = ProfileOut.model_validate(internal_profile_orm)
+
+        profile_data = {
+            **external_profile,
+            **internal_profile.model_dump()
+        }
+
+        profile = ProfileJoined.model_validate(profile_data)
+        user_data = {
+            **external_user_data,
+            **internal_user.model_dump()
+        }
+
+        user_data.pop('profile')
+        joined_user = UserJoined(
+            **user_data,
+            profile=profile
+        )
+
+        return joined_user

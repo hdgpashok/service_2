@@ -24,3 +24,8 @@ class ProfileExternal(BaseModel):
     bio: str
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class ProfileJoined(ProfileExternal):
+    nickname: str
+
