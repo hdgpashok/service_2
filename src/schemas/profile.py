@@ -13,6 +13,12 @@ class ProfileOut(ProfileBase):
     model_config = ConfigDict(from_attributes=True)
 
 
+class ProfileOutput(ProfileBase):
+    id: UUID
+    title: str
+    bio: str
+
+
 class ProfileCreate(ProfileBase):
     title: str
     bio: str

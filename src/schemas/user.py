@@ -2,7 +2,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
 
-from src.schemas.profile import ProfileOut, ProfileCreate, ProfileExternal, ProfileJoined
+from src.schemas.profile import ProfileOut, ProfileCreate, ProfileExternal, ProfileJoined, ProfileOutput
 
 
 class UserBase(BaseModel):
@@ -12,9 +12,16 @@ class UserBase(BaseModel):
 
 class UserOut(UserBase):
     id: UUID
-    title: str
-    bio: str
+
     profile: ProfileOut
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class UserOutput(UserBase):
+    id: UUID
+    title: str
+    profile: ProfileOutput
 
     model_config = ConfigDict(from_attributes=True)
 

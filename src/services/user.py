@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.repository.profile import ProfileRepository
 from src.schemas.profile import ProfileExternal, ProfileOut, ProfileJoined
 from src.repository.user import UserRepository
-from src.schemas.user import UserCreate, UserExternal, UserJoined, UserOut
+from src.schemas.user import UserCreate, UserExternal, UserJoined, UserOut, UserOutput
 
 
 class UserService:
@@ -31,12 +31,17 @@ class UserService:
             status_code = responce.status_code
 
         if status_code == 200:
-            return await UserRepository.create(
+            await UserRepository.create(
                 user,
                 external_user.id,
                 external_user.profile.id,
                 session
             )
+            user_data = user.model_dump()
+            user_data['id'] = external_user.id
+            user_data['profile']['id'] = external_user.profile.id
+            return UserOutput.model_validate(user_data)
+
         else:
             return {'error': 'error'}
 
