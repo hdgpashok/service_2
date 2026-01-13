@@ -1,4 +1,7 @@
+import asyncio
 import json
+import random
+import time
 import uuid
 
 import httpx
@@ -8,6 +11,12 @@ from src.repository.profile import ProfileRepository
 from src.schemas.profile import ProfileExternal, ProfileOut, ProfileJoined
 from src.repository.user import UserRepository
 from src.schemas.user import UserCreate, UserExternal, UserJoined, UserOut, UserOutput
+
+from src.core.logger import get_logger
+
+base_url = "http://localhost:8000/api/v1/users_profiles"
+
+user_service_loger = get_logger('user_service')
 
 
 class UserService:
@@ -24,33 +33,53 @@ class UserService:
         )
 
         async with httpx.AsyncClient() as client:
-            responce = await client.post(
-                "http://localhost:8000/api/v1/users_profiles/external_user",
-                json=external_user.model_dump(mode='json')
-            )
-            status_code = responce.status_code
+            for attempt in range(4):
+                try:
+                    responce = await client.post(
+                        f"{base_url}/external_user",
+                        json=external_user.model_dump(mode='json')
+                    )
+                    responce.raise_for_status()
+                    break
 
-        if status_code == 200:
-            await UserRepository.create(
-                user,
-                external_user.id,
-                external_user.profile.id,
-                session
-            )
-            user_data = user.model_dump()
-            user_data['id'] = external_user.id
-            user_data['profile']['id'] = external_user.profile.id
-            return UserOutput.model_validate(user_data)
+                except Exception as e:
+                    if attempt == 3:
+                        raise e
 
-        else:
-            return {'error': 'error'}
+                    delay = 0.1 * (2 ** attempt)
+                    jitter = random.uniform(0, delay * 0.3)
+
+                    user_service_loger.info(f'attempt №{attempt + 1} delay {delay + jitter}')
+                    await asyncio.sleep(delay + jitter)
+
+        await UserRepository.create(
+            user,
+            external_user.id,
+            external_user.profile.id,
+            session
+        )
+        user_data = user.model_dump()
+        user_data['id'] = external_user.id
+        user_data['profile']['id'] = external_user.profile.id
+        return UserOutput.model_validate(user_data)
 
     @staticmethod
     async def get_user(user_id: uuid.UUID, session: AsyncSession):
         async with httpx.AsyncClient() as client:
-            resp = await client.get(f'http://localhost:8000/api/v1/users_profiles/users/{user_id}')
+            for attempt in range(4):
+                try:
+                    resp = await client.get(f'{base_url}/users/{user_id}')
+                    external_user_data = resp.json()
+                    break
 
-        external_user_data = resp.json()
+                except Exception as e:
+                    if attempt == 3:
+                        raise e
+
+                    delay = 0.1 * (2 ** attempt)
+                    jitter = random.uniform(0, delay * 0.3)
+                    user_service_loger.info(f'attempt №{attempt + 1} delay {delay + jitter}')
+                    await asyncio.sleep(delay + jitter)
 
         internal_user_orm = await UserRepository.select(user_id, session)
         internal_user = UserOut.model_validate(internal_user_orm)
