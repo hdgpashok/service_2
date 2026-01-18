@@ -6,6 +6,7 @@ from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     postgres_url: PostgresDsn = Field(env='postgres_url')
+    base_url: str = Field(env='base_url')
 
     class Config:
         env_file = os.path.abspath(

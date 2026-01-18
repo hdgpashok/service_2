@@ -12,7 +12,10 @@ from src.schemas.user import UserCreate, UserExternal, UserJoined, UserOut, User
 
 from src.core.logger import get_logger
 
-base_url = "http://localhost:8000/api/v1/users_profiles"
+from src.core.config import Settings
+
+settings = Settings()
+
 
 user_service_loger = get_logger('user_service')
 
@@ -34,7 +37,7 @@ class UserService:
             for attempt in range(4):
                 try:
                     responce = await client.post(
-                        f"{base_url}/external_user",
+                        f"{settings.base_url}/external_user",
                         json=external_user.model_dump(mode='json')
                     )
                     responce.raise_for_status()
@@ -66,7 +69,7 @@ class UserService:
         async with httpx.AsyncClient() as client:
             for attempt in range(4):
                 try:
-                    resp = await client.get(f'{base_url}/users/{user_id}')
+                    resp = await client.get(f'{settings.base_url}/users/{user_id}')
                     external_user_data = resp.json()
                     break
 
