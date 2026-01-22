@@ -4,8 +4,6 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from src.exceptions.not_found import ObjectNotFound
-
 from src.models.user import UserModel
 
 from src.models.profile import ProfileModel
@@ -23,9 +21,6 @@ class UserRepository:
         )
         result = await session.execute(query)
         user = result.scalars().first()
-
-        if not user:
-            raise ObjectNotFound(object_id=user_id)
 
         return user
 

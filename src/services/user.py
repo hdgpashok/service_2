@@ -1,10 +1,9 @@
-import asyncio
-import random
 import uuid
 
-import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.exceptions.not_found import ObjectNotFound
+from src.services.call_api import CallApi
 from src.repository.profile import ProfileRepository
 from src.schemas.profile import ProfileExternal, ProfileOut, ProfileJoined
 from src.repository.user import UserRepository
@@ -21,6 +20,7 @@ user_service_loger = get_logger('user_service')
 
 
 class UserService:
+
     @staticmethod
     async def create_user(user: UserCreate, session: AsyncSession):
         external_user = UserExternal(
@@ -33,25 +33,7 @@ class UserService:
             )
         )
 
-        async with httpx.AsyncClient() as client:
-            for attempt in range(4):
-                try:
-                    responce = await client.post(
-                        f"{settings.base_url}/external_user",
-                        json=external_user.model_dump(mode='json')
-                    )
-                    responce.raise_for_status()
-                    break
-
-                except Exception as e:
-                    if attempt == 3:
-                        raise e
-
-                    delay = 0.1 * (2 ** attempt)
-                    jitter = random.uniform(0, delay * 0.3)
-
-                    user_service_loger.info(f'attempt №{attempt + 1} delay {delay + jitter}')
-                    await asyncio.sleep(delay + jitter)
+        await CallApi.user_post_request(external_user)
 
         await UserRepository.create(
             user,
@@ -66,26 +48,16 @@ class UserService:
 
     @staticmethod
     async def get_user(user_id: uuid.UUID, session: AsyncSession):
-        async with httpx.AsyncClient() as client:
-            for attempt in range(4):
-                try:
-                    resp = await client.get(f'{settings.base_url}/users/{user_id}')
-                    external_user_data = resp.json()
-                    break
-
-                except Exception as e:
-                    if attempt == 3:
-                        raise e
-
-                    delay = 0.1 * (2 ** attempt)
-                    jitter = random.uniform(0, delay * 0.3)
-                    user_service_loger.info(f'attempt №{attempt + 1} delay {delay + jitter}')
-                    await asyncio.sleep(delay + jitter)
-
         internal_user_orm = await UserRepository.select(user_id, session)
+
+        if not internal_user_orm:
+            raise ObjectNotFound(object_id=user_id)
+
+        external_user_data = await CallApi.user_get_request(user_id)
+
         internal_user = UserOut.model_validate(internal_user_orm)
 
-        external_profile = resp.json()['profile']
+        external_profile = external_user_data['profile']
         internal_profile_orm = await ProfileRepository.select(external_profile['id'], session)
         internal_profile = ProfileOut.model_validate(internal_profile_orm)
 
