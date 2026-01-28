@@ -6,9 +6,7 @@ from sqlalchemy.orm import selectinload
 
 from src.models.user import UserModel
 
-from src.models.profile import ProfileModel
-
-from src.schemas.user import UserCreate, UserOut
+from src.schemas.user import UserOut
 
 
 class UserRepository:
@@ -25,18 +23,7 @@ class UserRepository:
         return user
 
     @staticmethod
-    async def create(
-            user: UserCreate,
-            user_id: UUID,
-            profile_id: UUID,
-            session: AsyncSession) -> UserOut:
-        new_profile = ProfileModel(**user.profile.model_dump(exclude={'title', 'bio'}), id=profile_id)
-
-        new_user = UserModel(id=user_id,  profile=new_profile)
-        user_data = user.model_dump(exclude={'profile'})
-
-        for key, value in user_data.items():
-            setattr(new_user, key, value)
+    async def create(new_user: UserModel, session: AsyncSession) -> UserOut:
 
         session.add(new_user)
 

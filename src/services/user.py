@@ -2,6 +2,8 @@ import uuid
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.models.profile import ProfileModel
+from src.models.user import UserModel
 from src.exceptions.not_found import ObjectNotFound
 from src.services.call_api import CallApi
 from src.repository.profile import ProfileRepository
@@ -12,6 +14,7 @@ from src.schemas.user import UserCreate, UserExternal, UserJoined, UserOut, User
 from src.core.logger import get_logger
 
 from src.core.config import Settings
+
 
 settings = Settings()
 
@@ -35,10 +38,16 @@ class UserService:
 
         await CallApi.user_post_request(external_user)
 
+        new_profile = ProfileModel(**user.profile.model_dump(exclude={'title', 'bio'}), id=external_user.profile.id)
+
+        new_user = UserModel(id=external_user.id,  profile=new_profile)
+        user_data = user.model_dump(exclude={'profile'})
+
+        for key, value in user_data.items():
+            setattr(new_user, key, value)
+
         await UserRepository.create(
-            user,
-            external_user.id,
-            external_user.profile.id,
+            new_user,
             session
         )
         user_data = user.model_dump()
