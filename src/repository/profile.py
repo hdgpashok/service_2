@@ -18,7 +18,4 @@ class ProfileRepository:
         result = await session.execute(query)
         profile = result.scalars().first()
 
-        if not profile:
-            raise ObjectNotFound(object_id=profile_id)
-
         return profile
