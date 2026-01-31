@@ -17,10 +17,10 @@ router = APIRouter(
 
 
 @router.post('/users', status_code=HTTP_201_CREATED)
-async def create_user(user: UserCreate, session: SessionDep):
+async def create_user(user: UserCreate, session: SessionDep) -> UserOut:
     return await UserService.create_user(user, session)
 
 
 @router.get('/users')
-async def get_user(user_id: UUID, session: SessionDep):
+async def get_user(user_id: UUID, session: SessionDep) -> UserOut:
     return await UserService.get_user(user_id, session)

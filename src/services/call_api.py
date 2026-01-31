@@ -8,10 +8,8 @@ from src.core.logger import get_logger
 from src.core.retry import retry
 
 from src.exceptions.server_error import ServerError
-from src.exceptions.timeout_error import ServerTimeoutError
 from src.exceptions.not_found import ObjectNotFound
 
-from src.services.timeout import timeout_with_jitter
 
 logger = get_logger('call_api_logger')
 

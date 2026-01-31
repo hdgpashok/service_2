@@ -3,8 +3,6 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.exceptions.not_found import ObjectNotFound
-
 from src.models.profile import ProfileModel
 
 

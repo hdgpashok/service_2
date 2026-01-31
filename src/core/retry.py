@@ -1,5 +1,4 @@
 from functools import wraps
-from typing import Callable
 
 from src.exceptions.timeout_error import ServerTimeoutError
 from src.services.timeout import timeout_with_jitter
@@ -16,6 +15,7 @@ def retry(exceptions: tuple, max_retries: int = settings.MAX_RETRIES):
             for attempt in range(1, max_retries + 4):
                 try:
                     await func(*args, **kwargs)
+                    break
                 except exceptions:
                     if attempt == settings.MAX_RETRIES:
                         raise ServerTimeoutError()
