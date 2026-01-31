@@ -12,9 +12,6 @@ settings = Settings()
 
 
 async def timeout_with_jitter(attempt: int):
-    if attempt == settings.MAX_RETRIES:
-        raise
-
     delay = 0.1 * (2 ** attempt)
     jitter = random.uniform(0, delay * 0.3)
     logger.info(f'attempt №{attempt + 1} delay {delay + jitter}')

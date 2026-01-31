@@ -68,6 +68,10 @@ class UserService:
 
         external_profile = external_user_data['profile']
         internal_profile_orm = await ProfileRepository.select(external_profile['id'], session)
+
+        if not internal_profile_orm:
+            raise ObjectNotFound(object_id=external_profile['id'])
+
         internal_profile = ProfileOut.model_validate(internal_profile_orm)
 
         profile_data = {

@@ -1,6 +1,6 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import UJSONResponse
-from exceptions.base import AppException
+from src.exceptions.base import AppException
 
 
 def error_handler(app: FastAPI):

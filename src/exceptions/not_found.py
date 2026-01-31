@@ -1,4 +1,4 @@
-from exceptions.base import AppException
+from src.exceptions.base import AppException
 from sqlalchemy import UUID
 
 
