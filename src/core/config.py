@@ -11,6 +11,10 @@ class Settings(BaseSettings):
     postgres_url: PostgresDsn = Field(env='postgres_url')
     service1_base_url: str = Field(env='service1_base_url')
 
+    REDIS_HOST: str = Field(env='REDIS_HOST')
+    REDIS_PORT: int = Field(env='REDIS_PORT')
+    REDIS_DB: int = Field(env='REDIS_DB')
+
     MAX_RETRIES: int = Field(env='MAX_RETRIES')
 
     HTTP_TIMEOUT: ClassVar[httpx.Timeout] = httpx.Timeout(
