@@ -25,10 +25,8 @@ async def test_get_user_success(mock_session, user_id):
 
     mock_session.execute = AsyncMock(return_value=mock_result)
 
-    # Act
     result = await UserRepository.select(user_id, mock_session)
 
-    # Assert
     assert result == expected_user
     assert result.first_name == "Bob"
     assert result.last_name == "Karl"
