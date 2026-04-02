@@ -1,13 +1,14 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import UJSONResponse
 from src.exceptions.base import AppException
+from src.schemas.handler import Handler
 
 
 def error_handler(app: FastAPI):
 
     @app.exception_handler(AppException)
     async def app_exceptions_handler(req: Request, exc: AppException):
-        body = {'detail': exc.message}
+        body = Handler(detail=exc.message)
 
         return UJSONResponse(
             status_code=exc.status_code,

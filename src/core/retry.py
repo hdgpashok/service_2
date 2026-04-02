@@ -11,21 +11,23 @@ logger = get_logger('retry_logger')
 
 settings = Settings()
 
+RETRY_STATUSES = [500, 502, 503, 504, 429]
+
 
 def retry(exceptions: tuple, max_retries: int = settings.MAX_RETRIES):
     def wrapper(func):
         @wraps(func)
         async def inner(*args, **kwargs):
-            for attempt in range(1, max_retries + 1):
+            for attempt in range(max_retries):
                 try:
                     return await func(*args, **kwargs)
 
                 except exceptions:
-                    if attempt == max_retries:
+                    if attempt == max_retries - 1:
                         logger.error('Attempts are over. Throwing server error.')
                         raise ServerTimeoutError()
 
-                logger.info(f'Attempt number {attempt} failed. Trying one more time.')
+                logger.info(f'Attempt number {attempt + 1} failed. Trying one more time.')
                 await timeout_with_jitter(attempt)
         return inner
 
