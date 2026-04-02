@@ -26,10 +26,6 @@ user_service_loger = get_logger('user_service')
 class UserService:
     @staticmethod
     async def create_user(user: UserCreate, session: AsyncSession):
-        user_service_loger.info(
-            f'[CREATE USER] Start creating user title={user.title}'
-        )
-
         external_user = UserExternal(
             id=uuid.uuid4(),
             title=user.title,
@@ -78,7 +74,7 @@ class UserService:
             try:
                 await api.user_delete_request(external_user.id)
                 user_service_loger.info(
-                    f'[CREATE USER] Rollback success user_id={external_user.id}'
+                    f'[CREATE USER] Rollback user_id={external_user.id}'
                 )
             except Exception as delete_exc:
                 user_service_loger.critical(
@@ -100,10 +96,6 @@ class UserService:
 
     @staticmethod
     async def get_user(user_id: uuid.UUID, session: AsyncSession):
-        user_service_loger.info(
-            f'[GET USER] Start fetching user user_id={user_id}'
-        )
-
         try:
             internal = await UserRepository.select(user_id, session)
         except Exception as exc:
