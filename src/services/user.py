@@ -65,7 +65,7 @@ class UserService:
                 f'[CREATE USER] User saved to DB user_id={external_user.id}'
             )
 
-        except (ServerError, httpx.ConnectTimeout) as exc:
+        except Exception as exc:
             user_service_loger.error(
                 f'[CREATE USER] DB error, rolling back external user '
                 f'user_id={external_user.id} error={repr(exc)}'
@@ -82,7 +82,7 @@ class UserService:
                     f'user_id={external_user.id} error={repr(delete_exc)}'
                 )
 
-            raise
+            raise ServerError(status=exc.status_code)
 
         user_data = user.model_dump()
         user_data['id'] = external_user.id
