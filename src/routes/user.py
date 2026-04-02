@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from starlette.status import HTTP_201_CREATED
+from starlette.status import HTTP_201_CREATED, HTTP_200_OK
 
 from fastapi import APIRouter, Depends
 
@@ -21,6 +21,6 @@ async def create_user(user: UserCreate, session: SessionDep) -> UserOut:
     return await UserService.create_user(user, session)
 
 
-@router.get('/users')
+@router.get('/users', status_code=HTTP_200_OK)
 async def get_user(user_id: UUID, session: SessionDep) -> UserOut:
     return await UserService.get_user(user_id, session)

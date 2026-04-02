@@ -2,11 +2,13 @@ from src.schemas.healthcheck import HealthCheck
 
 from fastapi import APIRouter
 
+from starlette.status import HTTP_200_OK
+
 router = APIRouter()
 
 
 @router.get('/healthcheck')
 async def healthcheck() -> HealthCheck:
     return HealthCheck(
-        status='ok'
+        status=HTTP_200_OK
     )
