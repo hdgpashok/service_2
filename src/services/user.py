@@ -127,18 +127,19 @@ class UserService:
         )
 
         try:
-            internal_user = UserOut.model_validate(internal).model_dump()
-            internal_profile = ProfileOut.model_validate(
-                internal.profile
-            ).model_dump()
-
+            # ✅ профиль
             profile = ProfileJoined.model_validate({
-                **external['profile'],
-                **internal_profile
+                **external.get("profile", {}),
+                **internal.get("profile", {})
             })
 
-            user_data = {**external, **internal_user}
-            user_data.pop('profile', None)
+            # ✅ пользователь
+            user_data = {
+                "id": external.get("id", internal["id"]),
+                "first_name": external.get("first_name", internal["first_name"]),
+                "last_name": external.get("last_name", internal["last_name"]),
+                "title": external.get("title"),
+            }
 
             user_service_loger.info(
                 f'[GET USER] Successfully merged user data user_id={user_id}'

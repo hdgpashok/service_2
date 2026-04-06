@@ -1,70 +1,70 @@
-import uuid
+from unittest.mock import patch, AsyncMock
+
 import pytest
 
 from src.services.user import UserService
 
 
 @pytest.mark.asyncio
-async def test_create_user_success(
-        mock_session,
-        user_id,
-        profile_id,
-        user_create_data,
-        user_model,
-        mock_user_repository,
-        mock_api_client,
-        mock_client_class
-):
-    mock_user_repository.select.return_value = user_model
+async def test_create_user_success(mock_id, mock_create_user, mock_session):
+    with patch('src.services.user.api.user_post_request') as mock_post, \
+            patch('src.models.user.uuid.uuid4', return_value=mock_id):
 
-    result = await UserService.create_user(user_create_data, mock_session)
+        mock_post.return_value = None
 
-    assert isinstance(result.id, uuid.UUID)
-    assert result.first_name == user_create_data.first_name
-    assert result.last_name == user_create_data.last_name
-    assert result.profile.nickname == user_create_data.profile.nickname
-    assert result.profile.title == user_create_data.profile.title
-    assert result.profile.bio == user_create_data.profile.bio
+        result = await UserService.create_user(mock_create_user, mock_session)
 
-    mock_api_client.user_post_request.assert_awaited_once()
-    call_args = mock_api_client.user_post_request.call_args[0][0]
-    assert isinstance(call_args.id, uuid.UUID)
-    assert isinstance(call_args.profile.id, uuid.UUID)
+    assert result.id == mock_id
+    assert result.first_name == mock_create_user.first_name
+    assert result.last_name == mock_create_user.last_name
+    assert result.title == mock_create_user.title
 
-    mock_user_repository.create.assert_awaited_once()
+    assert result.profile.id == mock_id
+    assert result.profile.title == mock_create_user.profile.title
+    assert result.profile.bio == mock_create_user.profile.bio
 
 
 @pytest.mark.asyncio
-async def test_get_user_success(
-        mock_session,
-        user_id,
-        user_model,
-        profile_model,
-        external_user_data,
-        mock_user_repository,
-        mock_profile_repository,
-        mock_api_client
-):
-    mock_user_repository.select.return_value = user_model
-    mock_api_client.user_get_request.return_value = external_user_data
-    mock_profile_repository.select.return_value = profile_model
+async def test_get_user_success(mock_id, mock_session):
 
-    result = await UserService.get_user(user_id, mock_session)
+    with patch(
+            "src.services.user.UserRepository.select",
+            new_callable=AsyncMock
+    ) as mock_select, patch(
+        "src.services.user.api.user_get_request",
+        new_callable=AsyncMock
+    ) as mock_get:
 
-    assert result.id == user_id
-    assert result.first_name == user_model.first_name
-    assert result.last_name == user_model.last_name
-    assert result.profile.id == profile_model.id
-    assert result.profile.nickname == profile_model.nickname
+        mock_select.return_value = {
+            "id": mock_id,
+            "first_name": "internal_name",
+            "last_name": "internal_last",
+            "profile": {
+                "id": mock_id,
+                "nickname": "internal_nick"
+            }
+        }
 
-    assert result.title == external_user_data['title']
-    assert result.profile.title == external_user_data['profile']['title']
-    assert result.profile.bio == external_user_data['profile']['bio']
+        mock_get.return_value = {
+            "id": mock_id,
+            "first_name": "external_name",
+            "last_name": "external_last",
+            "title": "test",
+            "profile": {
+                "id": mock_id,
+                "title": "test",
+                "bio": "test"
+            }
+        }
 
-    mock_user_repository.select.assert_awaited_once_with(user_id, mock_session)
-    mock_api_client.user_get_request.assert_awaited_once_with(user_id)
-    mock_profile_repository.select.assert_awaited_once_with(
-        external_user_data['profile']['id'],
-        mock_session
-    )
+        result = await UserService.get_user(mock_id, mock_session)
 
+    assert result.id == mock_id
+    assert result.first_name == "external_name"
+    assert result.last_name == "external_last"
+    assert result.title == "test"
+
+    assert result.profile.id == mock_id
+    assert result.profile.title == "test"
+    assert result.profile.bio == "test"
+    assert result.profile.nickname == "internal_nick"

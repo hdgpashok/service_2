@@ -21,6 +21,6 @@ async def create_user(user: UserCreate, session: SessionDep) -> UserOut:
     return await UserService.create_user(user, session)
 
 
-@router.get('/users', status_code=HTTP_200_OK)
+@router.get('/users/{user_id}', status_code=HTTP_200_OK)
 async def get_user(user_id: UUID, session: SessionDep) -> UserOut:
     return await UserService.get_user(user_id, session)

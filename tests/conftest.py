@@ -1,26 +1,23 @@
 import uuid
+
 import pytest
-import asyncio
-from unittest.mock import AsyncMock, patch
-from typing import Dict, Any
+import pytest_asyncio
+from httpx import AsyncClient, ASGITransport
 
-
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine, AsyncSession
-from fastapi.testclient import TestClient
 from testcontainers.postgres import PostgresContainer
+from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 
-from src.db import get_session
-from src.models.base import Base
-from src.models.user import UserModel
-from src.models.profile import ProfileModel
-from src.schemas.user import UserCreate, UserOut
 from src.schemas.profile import ProfileCreate
+
+from src.schemas.user import UserCreate, UserOut
+from src.db import get_session
+
 from src.application import get_app
+
+from src.models.base import Base
 
 
 app = get_app()
-
-asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 
 @pytest.fixture(scope="session")
@@ -30,134 +27,78 @@ def postgres_container():
         yield f"postgresql+asyncpg://test:test@localhost:{port}/test"
 
 
-@pytest.fixture
-async def async_engine(postgres_container):
-    engine = create_async_engine(postgres_container, pool_pre_ping=True)
+@pytest_asyncio.fixture
+async def mock_async_engine(postgres_container):
+    engine = create_async_engine(postgres_container)
+
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+
     yield engine
     await engine.dispose()
 
 
-@pytest.fixture
-async def mock_session(async_engine) -> AsyncSession:
-    async_session_maker = async_sessionmaker(async_engine, expire_on_commit=False)
+@pytest_asyncio.fixture
+async def mock_session(mock_async_engine):
+    async_session_maker = async_sessionmaker(mock_async_engine, expire_on_commit=False)
+
     async with async_session_maker() as session:
-        yield session
-        await session.rollback()
+        try:
+            yield session
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
+        finally:
+            await session.close()
 
 
-@pytest.fixture
-def user_id() -> uuid.UUID:
-    return uuid.uuid4()
-
-
-@pytest.fixture
-def profile_id() -> uuid.UUID:
-    return uuid.uuid4()
-
-
-@pytest.fixture
-def profile_create_data() -> ProfileCreate:
-    return ProfileCreate(
-        title="Test Profile",
-        bio="Test Bio",
-        nickname="test_nick"
-    )
-
-
-@pytest.fixture
-def user_create_data(profile_create_data: ProfileCreate) -> UserCreate:
-    return UserCreate(
-        title="Test User Title",
-        first_name="John",
-        last_name="Doe",
-        profile=profile_create_data
-    )
-
-
-@pytest.fixture
-def external_user_data(user_id: uuid.UUID, profile_id: uuid.UUID) -> Dict[str, Any]:
-    return {
-        'id': str(user_id),
-        'title': 'External User Title',
-        'profile': {
-            'id': str(profile_id),
-            'title': 'External Profile Title',
-            'bio': 'External Profile Bio'
-        }
-    }
-
-
-@pytest.fixture
-def profile_model(profile_id: uuid.UUID) -> ProfileModel:
-    return ProfileModel(
-        id=profile_id,
-        nickname="test_nick"
-    )
-
-
-@pytest.fixture
-def user_model(user_id: uuid.UUID, profile_model: ProfileModel) -> UserModel:
-    user = UserModel(
-        id=user_id,
-        first_name="John",
-        last_name="Doe",
-        profile=profile_model
-    )
-    profile_model.user = user
-    return user
-
-
-@pytest.fixture
-def user_out(user_id: uuid.UUID, profile_id: uuid.UUID, user_create_data: UserCreate) -> UserOut:
-    return UserOut(
-        id=user_id,
-        first_name=user_create_data.first_name,
-        last_name=user_create_data.last_name,
-        profile={
-            'id': profile_id,
-            'nickname': user_create_data.profile.nickname,
-            'title': user_create_data.profile.title,
-            'bio': user_create_data.profile.bio
-        }
-    )
-
-
-@pytest.fixture
-def mock_user_repository():
-    with patch('src.services.user.UserRepository') as mock:
-        mock.select = AsyncMock()
-        mock.create = AsyncMock()
-        yield mock
-
-
-@pytest.fixture
-def mock_profile_repository():
-    with patch('src.services.user.ProfileRepository') as mock:
-        mock.select = AsyncMock()
-        yield mock
-
-
-@pytest.fixture
-def mock_api_client():
-    with patch('src.services.user.api') as mock:
-        mock.user_post_request = AsyncMock()
-        mock.user_get_request = AsyncMock()
-        yield mock
-
-
-@pytest.fixture
-def mock_client_class():
-    with patch('src.services.user.Client') as mock:
-        mock.user_delete_request = AsyncMock()
-        yield mock
-
-
-@pytest.fixture
-def client_override(mock_session):
+@pytest_asyncio.fixture
+async def mock_client(mock_session):
     app.dependency_overrides[get_session] = lambda: mock_session
-    with TestClient(app) as test_client:
-        yield test_client
+    async with AsyncClient(
+            transport=ASGITransport(app=app),
+            base_url="http://test/api/v1/users_profiles",
+    ) as cli:
+        yield cli
+
     app.dependency_overrides.clear()
 
+
+@pytest.fixture
+def mock_create_profile():
+    return ProfileCreate(
+        nickname="test",
+        title="test",
+        bio="test",
+    )
+
+
+@pytest.fixture
+def mock_create_user(mock_create_profile):
+    return UserCreate(
+        first_name="test",
+        last_name="test",
+        title="test",
+        profile=mock_create_profile
+    )
+
+
+@pytest.fixture
+def mock_id():
+    return uuid.UUID("12345678-1234-5678-1234-567812345678")
+
+
+@pytest.fixture
+def user_out(mock_id, mock_create_user) -> UserOut:
+    return UserOut(
+        id=mock_id,
+        first_name=mock_create_user.first_name,
+        last_name=mock_create_user.last_name,
+        profile={
+            'id': mock_id,
+            'nickname': mock_create_user.profile.nickname,
+            'title': mock_create_user.profile.title,
+            'bio': mock_create_user.profile.bio
+        }
+    )
