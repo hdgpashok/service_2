@@ -4,14 +4,17 @@ import pytest
 import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
 
+from unittest.mock import AsyncMock
 from testcontainers.postgres import PostgresContainer
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 
+from src.core.redis_cache import CacheService
+from src.services.call_api import Client
+
 from src.schemas.profile import ProfileCreate
-
 from src.schemas.user import UserCreate, UserOut
-from src.db import get_session
 
+from src.core.dependencies import get_session, get_client
 from src.application import get_app
 
 from src.models.base import Base
@@ -54,8 +57,44 @@ async def mock_session(mock_async_engine):
 
 
 @pytest_asyncio.fixture
-async def mock_client(mock_session):
+async def mock_cache():
+    cache = AsyncMock(spec=CacheService)
+    cache.get = AsyncMock(return_value=None)
+    cache.set = AsyncMock(return_value=True)
+    cache.delete = AsyncMock(return_value=True)
+    return cache
+
+
+@pytest_asyncio.fixture
+async def mock_client_get(mock_id):
+    return {
+        "id": mock_id,
+        "title": "string",
+        "profile": {
+            "title": "string",
+            "bio": "string",
+            "id": mock_id
+        }
+    }
+
+
+@pytest_asyncio.fixture
+async def mock_call_client(mock_cache, mock_client_get):
+    client = AsyncMock(spec=Client)
+    client.cache = mock_cache
+
+    client.user_get_request = AsyncMock(return_value=mock_client_get)
+    client.user_post_request = AsyncMock()
+    client.user_delete_request = AsyncMock()
+
+    return client
+
+
+@pytest_asyncio.fixture
+async def mock_client(mock_session, mock_call_client):
     app.dependency_overrides[get_session] = lambda: mock_session
+    app.dependency_overrides[get_client] = lambda: mock_call_client
+
     async with AsyncClient(
             transport=ASGITransport(app=app),
             base_url="http://test/api/v1/users_profiles",

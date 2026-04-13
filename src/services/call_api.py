@@ -1,15 +1,12 @@
-import json
 from uuid import UUID
 
 import httpx
-import ujson
 
 from src.schemas.user import UserExternal
 from src.core.config import Settings
 from src.core.logger import get_logger
 from src.core.retry import retry, RETRY_STATUSES
-from src.core.redis_cache import rd, expire_time
-
+from src.core.redis_cache import CacheService
 from src.exceptions.server_error import ServerError
 from src.exceptions.not_found import ObjectNotFound
 
@@ -22,12 +19,12 @@ settings = Settings()
 
 
 class Client:
-
-    def __init__(self):
+    def __init__(self, cache: CacheService):
         self.client = httpx.AsyncClient(
             base_url=settings.service1_base_url,
             timeout=settings.HTTP_TIMEOUT,
         )
+        self.cache = cache
 
     @retry(exceptions=(ServerError, httpx.ConnectTimeout))
     async def user_get_request(self, user_id: UUID):
@@ -35,10 +32,10 @@ class Client:
 
         logger.info(f'[GET USER] Start request user_id={user_id}')
 
-        cache = await rd.get(key)
-        if cache:
+        cache_data = await self.cache.get(key)
+        if cache_data is not None:
             logger.info(f'[GET USER] Cache hit user_id={user_id}')
-            return ujson.loads(cache)
+            return cache_data
 
         try:
             resp = await self.client.get(f"/users/{user_id}")
@@ -65,7 +62,7 @@ class Client:
         data = resp.json()
 
         logger.info(f'[GET USER] Caching user user_id={user_id}')
-        await rd.set(key, json.dumps(data), ex=expire_time)
+        await self.cache.set(key, data, expire=3600)
 
         logger.info(f'[GET USER] Success user_id={user_id}')
         return data
