@@ -1,34 +1,52 @@
 from functools import wraps
+from typing import Callable
 
-from src.exceptions.timeout_error import ServerTimeoutError
-from src.core.timeout import timeout_with_jitter
+
 from src.core.config import Settings
-
 from src.core.logger import get_logger
+from src.core.timeout import timeout_with_jitter
+from src.exceptions.timeout_error import ServerTimeoutError
 
 
 logger = get_logger('retry_logger')
-
 settings = Settings()
 
 RETRY_STATUSES = [500, 502, 503, 504, 429]
 
 
-def retry(exceptions: tuple, max_retries: int = settings.MAX_RETRIES):
-    def wrapper(func):
+def retry(max_retries: int | None = None):
+    if max_retries is None:
+        max_retries = settings.MAX_RETRIES
+
+    def decorator(func: Callable):
         @wraps(func)
-        async def inner(*args, **kwargs):
+        async def wrapper(*args, **kwargs):
             for attempt in range(max_retries):
                 try:
-                    return await func(*args, **kwargs)
+                    result = await func(*args, **kwargs)
 
-                except exceptions:
+                    if result.status_code in RETRY_STATUSES:
+                        logger.warning(
+                            f"[RETRY] Attempt {attempt + 1}/{max_retries} failed "
+                            f"with status {result.status_code}. Retrying..."
+                        )
+                        await timeout_with_jitter(attempt)
+                        continue
+
+                    return result
+
+                except Exception as exc:
+                    logger.warning(
+                        f"[RETRY] Attempt {attempt + 1}/{max_retries} failed "
+                        f"with {type(exc).__name__}. Retrying..."
+                    )
                     if attempt == max_retries - 1:
-                        logger.error('Attempts are over. Throwing server error.')
-                        raise ServerTimeoutError()
+                        break
+                    await timeout_with_jitter(attempt)
 
-                logger.info(f'Attempt number {attempt + 1} failed. Trying one more time.')
-                await timeout_with_jitter(attempt)
-        return inner
+            logger.error(f"[RETRY] All {max_retries} attempts failed")
+            raise ServerTimeoutError()
 
-    return wrapper
+        return wrapper
+
+    return decorator

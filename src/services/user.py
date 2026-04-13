@@ -12,10 +12,7 @@ from src.repository.user import UserRepository
 from src.schemas.user import UserCreate, UserExternal, UserJoined, UserOutput
 
 from src.core.logger import get_logger
-from src.core.config import Settings
 
-
-settings = Settings()
 
 user_service_logger = get_logger('user_service')
 
@@ -43,26 +40,25 @@ class UserService:
             user_service_logger.info(
                 f'[CREATE USER] External user created user_id={external_user.id}'
             )
-
         except Exception as exc:
             user_service_logger.error(
-                f'[CREATE USER] Failed to create external user '
-                f'user_id={external_user.id} error={repr(exc)}'
+                f'[CREATE USER] Failed to create external user user_id={external_user.id} error={repr(exc)}'
             )
             raise
 
-        new_profile = ProfileModel(
-            **user.profile.model_dump(exclude={'title', 'bio'}),
-            id=external_user.profile.id
-        )
-
-        new_user = UserModel(id=external_user.id, profile=new_profile)
-
-        for key, value in user.model_dump(exclude={'profile'}).items():
-            setattr(new_user, key, value)
-
         try:
+            new_profile = ProfileModel(
+                **user.profile.model_dump(exclude={'title', 'bio'}),
+                id=external_user.profile.id
+            )
+
+            new_user = UserModel(id=external_user.id, profile=new_profile)
+
+            for key, value in user.model_dump(exclude={'profile'}).items():
+                setattr(new_user, key, value)
+
             await UserRepository.create(new_user, session)
+
             user_service_logger.info(
                 f'[CREATE USER] User saved to DB user_id={external_user.id}'
             )
@@ -76,16 +72,17 @@ class UserService:
             try:
                 await client.user_delete_request(external_user.id)
                 user_service_logger.info(
-                    f'[CREATE USER] Rollback user_id={external_user.id}'
+                    f'[CREATE USER] Rollback successful for external user_id={external_user.id}'
                 )
             except Exception as delete_exc:
                 user_service_logger.critical(
-                    f'[CREATE USER] CRITICAL: failed to rollback external user '
+                    f'[CREATE USER] CRITICAL: Failed to rollback external user! '
                     f'user_id={external_user.id} error={repr(delete_exc)}'
                 )
 
-            raise ServerError(status=exc.status_code if hasattr(exc, 'status_code') else 500)
+            raise ServerError(status=500)
 
+        # 3. Формируем ответ
         user_data = user.model_dump()
         user_data['id'] = external_user.id
         user_data['profile']['id'] = external_user.profile.id
@@ -102,13 +99,7 @@ class UserService:
             session: AsyncSession,
             client: Client,
     ):
-        try:
-            internal = await UserRepository.select(user_id, session)
-        except Exception as exc:
-            user_service_logger.error(
-                f'[GET USER] DB error user_id={user_id} error={repr(exc)}'
-            )
-            raise
+        internal = await UserRepository.select(user_id, session)
 
         if not internal:
             user_service_logger.warning(
@@ -120,21 +111,15 @@ class UserService:
             f'[GET USER] Internal user fetched user_id={user_id}'
         )
 
-        try:
-            external = await client.user_get_request(user_id)
-        except Exception as exc:
-            user_service_logger.error(
-                f'[GET USER] External API error user_id={user_id} error={repr(exc)}'
-            )
-            raise
+        external = await client.user_get_request(user_id)
 
         user_service_logger.info(
             f'[GET USER] External user fetched user_id={user_id}'
         )
 
         try:
-            ext_dict = dict(external) if isinstance(external, dict) else (external.__dict__ if hasattr(external, '__dict__') else {})
-            int_dict = dict(internal) if isinstance(internal, dict) else (internal.__dict__ if hasattr(internal, '__dict__') else {})
+            ext_dict = dict(external) if isinstance(external, dict) else getattr(external, '__dict__', {})
+            int_dict = dict(internal) if isinstance(internal, dict) else getattr(internal, '__dict__', {})
 
             ext_profile = ext_dict.get("profile") or {}
             int_profile = int_dict.get("profile") or {}

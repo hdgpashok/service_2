@@ -5,9 +5,8 @@ import httpx
 from src.schemas.user import UserExternal
 from src.core.config import Settings
 from src.core.logger import get_logger
-from src.core.retry import retry, RETRY_STATUSES
+from src.core.retry import retry
 from src.core.redis_cache import CacheService
-from src.exceptions.server_error import ServerError
 from src.exceptions.not_found import ObjectNotFound
 
 from starlette.status import HTTP_404_NOT_FOUND
@@ -26,7 +25,7 @@ class Client:
         )
         self.cache = cache
 
-    @retry(exceptions=(ServerError, httpx.ConnectTimeout))
+    @retry()
     async def user_get_request(self, user_id: UUID):
         key = f'user:{user_id}'
 
@@ -37,23 +36,12 @@ class Client:
             logger.info(f'[GET USER] Cache hit user_id={user_id}')
             return cache_data
 
-        try:
-            resp = await self.client.get(f"/users/{user_id}")
-            logger.info(
-                f'[GET USER] Response received user_id={user_id} '
-                f'status_code={resp.status_code}'
-            )
+        resp = await self.client.get(f"/users/{user_id}")
 
-        except httpx.ConnectTimeout:
-            logger.error(f'[GET USER] Timeout user_id={user_id}')
-            raise
-
-        if resp.status_code in RETRY_STATUSES:
-            logger.error(
-                f'[GET USER] Server error user_id={user_id} '
-                f'status_code={resp.status_code}'
-            )
-            raise ServerError(resp.status_code)
+        logger.info(
+            f'[GET USER] Response received user_id={user_id} '
+            f'status_code={resp.status_code}'
+        )
 
         if resp.status_code == HTTP_404_NOT_FOUND:
             logger.warning(f'[GET USER] Not found user_id={user_id}')
@@ -67,58 +55,34 @@ class Client:
         logger.info(f'[GET USER] Success user_id={user_id}')
         return data
 
-    @retry(exceptions=(ServerError, httpx.ConnectTimeout))
+    @retry()
     async def user_post_request(self, user: UserExternal):
         logger.info(f'[POST USER] Start request user_id={user.id}')
 
-        try:
-            resp = await self.client.post(
-                f"{settings.service1_base_url}/external_user",
-                json=user.model_dump(mode='json')
-            )
+        resp = await self.client.post(
+            f"{settings.service1_base_url}/external_user",
+            json=user.model_dump(mode='json')
+        )
 
-            logger.info(
-                f'[POST USER] Response received user_id={user.id} '
-                f'status_code={resp.status_code}'
-            )
-
-        except httpx.ConnectTimeout:
-            logger.error(f'[POST USER] Timeout user_id={user.id}')
-            raise
-
-        if resp.status_code in RETRY_STATUSES:
-            logger.error(
-                f'[POST USER] Server error user_id={user.id} '
-                f'status_code={resp.status_code}'
-            )
-            raise ServerError(resp.status_code)
+        logger.info(
+            f'[POST USER] Response received user_id={user.id} '
+            f'status_code={resp.status_code}'
+        )
 
         logger.info(f'[POST USER] Success user_id={user.id}')
 
-    @retry(exceptions=(ServerError, httpx.ConnectTimeout))
+    @retry()
     async def user_delete_request(self, user_id: UUID):
         logger.info(f'[DELETE USER] Start request user_id={user_id}')
 
-        try:
-            resp = await self.client.delete(
-                f'{settings.service1_base_url}/users/{user_id}'
-            )
+        resp = await self.client.delete(
+            f'{settings.service1_base_url}/users/{user_id}'
+        )
 
-            logger.info(
-                f'[DELETE USER] Response received user_id={user_id} '
-                f'status_code={resp.status_code}'
-            )
-
-        except httpx.ConnectTimeout:
-            logger.error(f'[DELETE USER] Timeout user_id={user_id}')
-            raise
-
-        if resp.status_code in RETRY_STATUSES:
-            logger.error(
-                f'[DELETE USER] Server error user_id={user_id} '
-                f'status_code={resp.status_code}'
-            )
-            raise ServerError(resp.status_code)
+        logger.info(
+            f'[DELETE USER] Response received user_id={user_id} '
+            f'status_code={resp.status_code}'
+        )
 
         if resp.status_code == HTTP_404_NOT_FOUND:
             logger.warning(f'[DELETE USER] Not found user_id={user_id}')
