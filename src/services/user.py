@@ -44,7 +44,7 @@ class UserService:
             user_service_logger.error(
                 f'[CREATE USER] Failed to create external user user_id={external_user.id} error={repr(exc)}'
             )
-            raise
+            raise ServerError(status=500)
 
         try:
             new_profile = ProfileModel(

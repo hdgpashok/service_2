@@ -23,22 +23,13 @@ def retry(max_retries: int | None = None):
         async def wrapper(*args, **kwargs):
             for attempt in range(max_retries):
                 try:
-                    result = await func(*args, **kwargs)
-
-                    if result.status_code in RETRY_STATUSES:
-                        logger.warning(
-                            f"[RETRY] Attempt {attempt + 1}/{max_retries} failed "
-                            f"with status {result.status_code}. Retrying..."
-                        )
-                        await timeout_with_jitter(attempt)
-                        continue
-
-                    return result
+                    return await func(*args, **kwargs)
 
                 except Exception as exc:
                     logger.warning(
                         f"[RETRY] Attempt {attempt + 1}/{max_retries} failed "
                         f"with {type(exc).__name__}. Retrying..."
+                        f"{exc}"
                     )
                     if attempt == max_retries - 1:
                         break
