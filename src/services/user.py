@@ -35,6 +35,7 @@ class UserService:
             )
         )
 
+        # Создание во внешнем сервисе
         try:
             await client.user_post_request(external_user)
             user_service_logger.info(
@@ -44,8 +45,9 @@ class UserService:
             user_service_logger.error(
                 f'[CREATE USER] Failed to create external user user_id={external_user.id} error={repr(exc)}'
             )
-            raise ServerError(status=500)
+            raise ServerError("Failed to create user in external service") from exc
 
+        # Сохранение в локальную БД
         try:
             new_profile = ProfileModel(
                 **user.profile.model_dump(exclude={'title', 'bio'}),
@@ -69,10 +71,11 @@ class UserService:
                 f'user_id={external_user.id} error={repr(exc)}'
             )
 
+            # Rollback во внешнем сервисе
             try:
                 await client.user_delete_request(external_user.id)
                 user_service_logger.info(
-                    f'[CREATE USER] Rollback successful for external user_id={external_user.id}'
+                    f'[CREATE USER] Rollback successful user_id={external_user.id}'
                 )
             except Exception as delete_exc:
                 user_service_logger.critical(
@@ -80,9 +83,9 @@ class UserService:
                     f'user_id={external_user.id} error={repr(delete_exc)}'
                 )
 
-            raise ServerError(status=500)
+            raise ServerError("Failed to save user in local database") from exc
 
-        # 3. Формируем ответ
+        # Формируем ответ
         user_data = user.model_dump()
         user_data['id'] = external_user.id
         user_data['profile']['id'] = external_user.profile.id
@@ -92,6 +95,7 @@ class UserService:
         )
 
         return UserOutput.model_validate(user_data)
+
 
     @staticmethod
     async def get_user(
@@ -151,4 +155,4 @@ class UserService:
                 f'[GET USER] Data merge/validation error user_id={user_id} '
                 f'error={repr(exc)}'
             )
-            raise
+            raise ServerError("Failed to merge user data") from exc

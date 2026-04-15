@@ -1,12 +1,10 @@
-from src.exceptions.base import AppException
-
 from starlette.status import HTTP_504_GATEWAY_TIMEOUT
+from src.exceptions.base import AppException
 
 
 class ServerTimeoutError(AppException):
-    def __init__(self):
+    def __init__(self, message: str = "Service timeout"):
         super().__init__(
-            message=f'Connection attempts have expired. The server crashes with error 504',
+            message=message,
             status_code=HTTP_504_GATEWAY_TIMEOUT
         )
-
