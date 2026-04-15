@@ -35,7 +35,6 @@ class UserService:
             )
         )
 
-        # Создание во внешнем сервисе
         try:
             await client.user_post_request(external_user)
             user_service_logger.info(
@@ -47,7 +46,6 @@ class UserService:
             )
             raise ServerError("Failed to create user in external service") from exc
 
-        # Сохранение в локальную БД
         try:
             new_profile = ProfileModel(
                 **user.profile.model_dump(exclude={'title', 'bio'}),
@@ -71,7 +69,6 @@ class UserService:
                 f'user_id={external_user.id} error={repr(exc)}'
             )
 
-            # Rollback во внешнем сервисе
             try:
                 await client.user_delete_request(external_user.id)
                 user_service_logger.info(
@@ -85,7 +82,6 @@ class UserService:
 
             raise ServerError("Failed to save user in local database") from exc
 
-        # Формируем ответ
         user_data = user.model_dump()
         user_data['id'] = external_user.id
         user_data['profile']['id'] = external_user.profile.id
@@ -95,7 +91,6 @@ class UserService:
         )
 
         return UserOutput.model_validate(user_data)
-
 
     @staticmethod
     async def get_user(
