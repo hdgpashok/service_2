@@ -35,3 +35,6 @@ class ProfileExternal(BaseModel):
 class ProfileJoined(ProfileExternal):
     nickname: str
 
+    model_config = ConfigDict(from_attributes=True)
+
+

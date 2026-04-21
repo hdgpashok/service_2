@@ -12,5 +12,5 @@ def error_handler(app: FastAPI):
 
         return UJSONResponse(
             status_code=exc.status_code,
-            content=body
+            content=body.model_dump()
         )

@@ -5,7 +5,7 @@ from unittest.mock import patch, AsyncMock
 
 @pytest.mark.asyncio
 async def test_user_route_post(mock_id, mock_create_user, mock_client):
-    with patch("src.services.call_api.Client.user_post_request", new_callable=AsyncMock) as mock_post, \
+    with patch("src.services.call_api.ClientMainService.user_post_request", new_callable=AsyncMock) as mock_post, \
             patch("src.repository.user.UserRepository.create", new_callable=AsyncMock) as mock_create, \
             patch("src.services.user.uuid.uuid4", return_value=mock_id):
 
@@ -43,7 +43,7 @@ async def test_user_route_get(mock_id, mock_client, mock_client_get):
             "src.repository.user.UserRepository.select",
             new_callable=AsyncMock
     ) as mock_select, patch(
-        "src.services.call_api.Client.user_get_request",
+        "src.services.call_api.ClientMainService.user_get_request",
         new_callable=AsyncMock
     ) as mock_external:
 

@@ -1,6 +1,7 @@
 from uuid import UUID
 
 import httpx
+import ujson
 
 from src.schemas.user import UserExternal
 from src.core.config import Settings
@@ -17,7 +18,7 @@ logger = get_logger('call_api_logger')
 settings = Settings()
 
 
-class Client:
+class ClientMainService:
     def __init__(self, cache: CacheService):
         self.client = httpx.AsyncClient(
             base_url=settings.service1_base_url,
@@ -47,7 +48,7 @@ class Client:
             logger.warning(f'[GET USER] Not found user_id={user_id}')
             raise ObjectNotFound(object_id=user_id)
 
-        data = resp.json()
+        data = ujson.loads(resp.text)
 
         logger.info(f'[GET USER] Caching user user_id={user_id}')
         await self.cache.set(key, data, expire=3600)
@@ -75,17 +76,15 @@ class Client:
     async def user_delete_request(self, user_id: UUID):
         logger.info(f'[DELETE USER] Start request user_id={user_id}')
 
-        resp = await self.client.delete(
-            f'{settings.service1_base_url}/users/{user_id}'
-        )
+        try:
+            resp = await self.client.delete(
+                f'{settings.service1_base_url}/users/{user_id}'
+            )
 
-        logger.info(
-            f'[DELETE USER] Response received user_id={user_id} '
-            f'status_code={resp.status_code}'
-        )
-
-        if resp.status_code == HTTP_404_NOT_FOUND:
-            logger.warning(f'[DELETE USER] Not found user_id={user_id}')
-            raise ObjectNotFound(object_id=user_id)
+        except Exception as delete_exc:
+            logger.critical(
+                f'[CREATE USER] CRITICAL: Failed to rollback external user! '
+                f'user_id={user_id} error={repr(delete_exc)}'
+            )
 
         logger.info(f'[DELETE USER] Success user_id={user_id}')

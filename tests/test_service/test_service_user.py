@@ -3,12 +3,12 @@ from unittest.mock import patch, AsyncMock
 import pytest
 
 from src.services.user import UserService
-from src.services.call_api import Client
+from src.services.call_api import ClientMainService
 
 
 @pytest.mark.asyncio
 async def test_create_user_success(mock_id, mock_create_user, mock_session):
-    mock_client = AsyncMock(spec=Client)
+    mock_client = AsyncMock(spec=ClientMainService)
     mock_client.user_post_request = AsyncMock(return_value=None)
     mock_client.user_delete_request = AsyncMock(return_value=None)
 
@@ -32,7 +32,7 @@ async def test_create_user_success(mock_id, mock_create_user, mock_session):
 
 @pytest.mark.asyncio
 async def test_get_user_success(mock_id, mock_session):
-    mock_client = AsyncMock(spec=Client)
+    mock_client = AsyncMock(spec=ClientMainService)
     mock_client.user_get_request = AsyncMock(return_value={
         "id": mock_id,
         "first_name": "external_name",

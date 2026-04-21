@@ -6,7 +6,7 @@ from src.models.profile import ProfileModel
 from src.models.user import UserModel
 from src.exceptions.server_error import ServerError
 from src.exceptions.not_found import ObjectNotFound
-from src.services.call_api import Client
+from src.services.call_api import ClientMainService
 from src.schemas.profile import ProfileExternal, ProfileJoined
 from src.repository.user import UserRepository
 from src.schemas.user import UserCreate, UserExternal, UserJoined, UserOutput
@@ -23,7 +23,7 @@ class UserService:
     async def create_user(
             user: UserCreate,
             session: AsyncSession,
-            client: Client,
+            client: ClientMainService,
     ):
         external_user = UserExternal(
             id=uuid.uuid4(),
@@ -35,16 +35,10 @@ class UserService:
             )
         )
 
-        try:
-            await client.user_post_request(external_user)
-            user_service_logger.info(
-                f'[CREATE USER] External user created user_id={external_user.id}'
-            )
-        except Exception as exc:
-            user_service_logger.error(
-                f'[CREATE USER] Failed to create external user user_id={external_user.id} error={repr(exc)}'
-            )
-            raise ServerError("Failed to create user in external service") from exc
+        await client.user_post_request(external_user)
+        user_service_logger.info(
+            f'[CREATE USER] External user created user_id={external_user.id}'
+        )
 
         try:
             new_profile = ProfileModel(
@@ -69,17 +63,10 @@ class UserService:
                 f'user_id={external_user.id} error={repr(exc)}'
             )
 
-            try:
-                await client.user_delete_request(external_user.id)
-                user_service_logger.info(
-                    f'[CREATE USER] Rollback successful user_id={external_user.id}'
-                )
-            except Exception as delete_exc:
-                user_service_logger.critical(
-                    f'[CREATE USER] CRITICAL: Failed to rollback external user! '
-                    f'user_id={external_user.id} error={repr(delete_exc)}'
-                )
-
+            await client.user_delete_request(external_user.id)
+            user_service_logger.info(
+                f'[CREATE USER] Rollback successful user_id={external_user.id}'
+            )
             raise ServerError("Failed to save user in local database") from exc
 
         user_data = user.model_dump()
@@ -93,61 +80,42 @@ class UserService:
         return UserOutput.model_validate(user_data)
 
     @staticmethod
-    async def get_user(
-            user_id: uuid.UUID,
-            session: AsyncSession,
-            client: Client,
-    ):
+    async def get_user(user_id: uuid.UUID, session: AsyncSession, client: ClientMainService):
         internal = await UserRepository.select(user_id, session)
-
         if not internal:
-            user_service_logger.warning(
-                f'[GET USER] User not found internally user_id={user_id}'
-            )
             raise ObjectNotFound(object_id=user_id)
-
-        user_service_logger.info(
-            f'[GET USER] Internal user fetched user_id={user_id}'
-        )
 
         external = await client.user_get_request(user_id)
 
-        user_service_logger.info(
-            f'[GET USER] External user fetched user_id={user_id}'
-        )
-
         try:
-            ext_dict = dict(external) if isinstance(external, dict) else getattr(external, '__dict__', {})
-            int_dict = dict(internal) if isinstance(internal, dict) else getattr(internal, '__dict__', {})
+            int_profile_data = {}
 
-            ext_profile = ext_dict.get("profile") or {}
-            int_profile = int_dict.get("profile") or {}
+            internal_profile = (
+                internal.profile if hasattr(internal, 'profile')
+                else internal.get('profile') if isinstance(internal, dict)
+                else None
+            )
 
-            if hasattr(ext_profile, '__dict__'):
-                ext_profile = ext_profile.__dict__
-            if hasattr(int_profile, '__dict__'):
-                int_profile = int_profile.__dict__
+            if internal_profile:
+                int_profile_data = {
+                    "bio": getattr(internal_profile, "bio", None) or internal_profile.get("bio") if isinstance(internal_profile, dict) else getattr(internal_profile, "bio", None),
+                    "nickname": getattr(internal_profile, "nickname", None) or internal_profile.get("nickname") if isinstance(internal_profile, dict) else getattr(internal_profile, "nickname", None)
+                }
 
-            profile_data = {**int_profile, **ext_profile}
-
-            profile = ProfileJoined.model_validate(profile_data)
+            ext_profile_data = external.get("profile") or {}
+            profile_merge = {**int_profile_data, **ext_profile_data}
+            profile = ProfileJoined.model_validate(profile_merge)
 
             user_data = {
-                "id": ext_dict.get("id") or int_dict.get("id"),
-                "first_name": ext_dict.get("first_name") or int_dict.get("first_name"),
-                "last_name": ext_dict.get("last_name") or int_dict.get("last_name"),
-                "title": ext_dict.get("title") or int_dict.get("title"),
+                "id": external.get("id") or (internal.id if hasattr(internal, 'id') else internal.get('id')),
+                "first_name": external.get("first_name") or (internal.first_name if hasattr(internal, 'first_name') else internal.get('first_name')),
+                "last_name": external.get("last_name") or (internal.last_name if hasattr(internal, 'last_name') else internal.get('last_name')),
+                "title": external.get("title") or ext_profile_data.get("title"),
+                "profile": profile
             }
 
-            user_service_logger.info(
-                f'[GET USER] Successfully merged user data user_id={user_id}'
-            )
-
-            return UserJoined(**user_data, profile=profile)
+            return UserJoined(**user_data)
 
         except Exception as exc:
-            user_service_logger.error(
-                f'[GET USER] Data merge/validation error user_id={user_id} '
-                f'error={repr(exc)}'
-            )
+            user_service_logger.error(f'[GET USER] Data merge error: {repr(exc)}')
             raise ServerError("Failed to merge user data") from exc

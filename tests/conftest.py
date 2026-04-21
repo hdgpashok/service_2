@@ -16,7 +16,7 @@ from src.schemas.profile import ProfileCreate
 from src.schemas.user import UserCreate, UserOut
 from src.models.base import Base
 from src.core.redis_cache import CacheService
-from src.services.call_api import Client
+from src.services.call_api import ClientMainService
 
 
 app = get_app()
@@ -102,7 +102,7 @@ async def mock_client_get(mock_id):
 
 @pytest_asyncio.fixture(scope='function')
 async def mock_call_client(cache, mock_client_get):
-    client = AsyncMock(spec=Client)
+    client = AsyncMock(spec=ClientMainService)
     client.cache = cache
 
     client.user_get_request = AsyncMock(return_value=mock_client_get)

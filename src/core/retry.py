@@ -11,7 +11,7 @@ from src.exceptions.timeout_error import ServerTimeoutError
 logger = get_logger('retry_logger')
 settings = Settings()
 
-RETRY_STATUSES = [500, 502, 503, 504, 429]
+RETRY_STATUSES = [500, 502, 503, 504, 408, 409, 429]
 
 
 def retry(max_retries: int | None = None):
