@@ -3,10 +3,11 @@ from uuid import UUID
 import httpx
 import ujson
 
+from src.exceptions.server_error import ServerError
 from src.schemas.user import UserExternal
 from src.core.config import Settings
 from src.core.logger import get_logger
-from src.core.retry import retry
+from src.core.retry import retry, RETRY_STATUSES
 from src.core.redis_cache import CacheService
 from src.exceptions.not_found import ObjectNotFound
 
@@ -30,23 +31,24 @@ class ClientMainService:
     async def user_get_request(self, user_id: UUID):
         key = f'user:{user_id}'
 
-        logger.info(f'[GET USER] Start request user_id={user_id}')
-
         cache_data = await self.cache.get(key)
-        if cache_data is not None:
+        if cache_data:
             logger.info(f'[GET USER] Cache hit user_id={user_id}')
             return cache_data
 
         resp = await self.client.get(f"/users/{user_id}")
 
-        logger.info(
-            f'[GET USER] Response received user_id={user_id} '
-            f'status_code={resp.status_code}'
-        )
+        if resp.status_code in RETRY_STATUSES:
+            raise ServerError(status_code=resp.status_code)
 
         if resp.status_code == HTTP_404_NOT_FOUND:
             logger.warning(f'[GET USER] Not found user_id={user_id}')
             raise ObjectNotFound(object_id=user_id)
+
+        logger.info(
+            f'[GET USER] Response received user_id={user_id} '
+            f'status_code={resp.status_code}'
+        )
 
         data = ujson.loads(resp.text)
 
