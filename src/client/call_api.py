@@ -3,7 +3,6 @@ from uuid import UUID
 import httpx
 import ujson
 
-from src.exceptions.server_error import ServerError
 from src.schemas.user import UserExternal
 from src.core.config import Settings
 from src.core.logger import get_logger
@@ -19,15 +18,20 @@ logger = get_logger('call_api_logger')
 settings = Settings()
 
 
-class ClientMainService:
-    def __init__(self, cache: CacheService):
+class ServiceClient:
+    def __init__(self, cache: CacheService, base_url: str = None):
         self.client = httpx.AsyncClient(
-            base_url=settings.service1_base_url,
+            base_url=base_url or settings.service1_base_url,
             timeout=settings.HTTP_TIMEOUT,
         )
         self.cache = cache
 
-    @retry()
+    @retry(
+        retry_if_result=lambda resp: (
+                isinstance(resp, httpx.Response) and resp.status_code in RETRY_STATUSES
+        ),
+        retry_exceptions=(httpx.TimeoutException, httpx.ConnectError),
+    )
     async def user_get_request(self, user_id: UUID):
         key = f'user:{user_id}'
 
@@ -36,10 +40,7 @@ class ClientMainService:
             logger.info(f'[GET USER] Cache hit user_id={user_id}')
             return cache_data
 
-        resp = await self.client.get(f"/users/{user_id}")
-
-        if resp.status_code in RETRY_STATUSES:
-            raise ServerError(status_code=resp.status_code)
+        resp: httpx.Response = await self.client.get(f"/users/{user_id}")
 
         if resp.status_code == HTTP_404_NOT_FOUND:
             logger.warning(f'[GET USER] Not found user_id={user_id}')
@@ -58,7 +59,12 @@ class ClientMainService:
         logger.info(f'[GET USER] Success user_id={user_id}')
         return data
 
-    @retry()
+    @retry(
+        retry_if_result=lambda resp: (
+                isinstance(resp, httpx.Response) and resp.status_code in RETRY_STATUSES
+        ),
+        retry_exceptions=(httpx.TimeoutException, httpx.ConnectError),
+    )
     async def user_post_request(self, user: UserExternal):
         logger.info(f'[POST USER] Start request user_id={user.id}')
 
@@ -74,12 +80,17 @@ class ClientMainService:
 
         logger.info(f'[POST USER] Success user_id={user.id}')
 
-    @retry()
+    @retry(
+        retry_if_result=lambda resp: (
+                isinstance(resp, httpx.Response) and resp.status_code in RETRY_STATUSES
+        ),
+        retry_exceptions=(httpx.TimeoutException, httpx.ConnectError),
+    )
     async def user_delete_request(self, user_id: UUID):
         logger.info(f'[DELETE USER] Start request user_id={user_id}')
 
         try:
-            resp = await self.client.delete(
+            await self.client.delete(
                 f'{settings.service1_base_url}/users/{user_id}'
             )
 

@@ -7,13 +7,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.core.config import Settings
 from src.db import async_session_maker
 from src.core.redis_cache import CacheService
-from src.services.call_api import ClientMainService
+from src.client.call_api import ServiceClient
 
 
 settings = Settings()
 
 
-# ====================== Database ======================
 async def get_session() -> AsyncSession:
     async with async_session_maker() as session:
         try:
@@ -26,7 +25,6 @@ async def get_session() -> AsyncSession:
             await session.close()
 
 
-# ====================== Redis ======================
 async def get_redis_client() -> Redis:
     return Redis(
         host=str(settings.REDIS_HOST),
@@ -36,17 +34,14 @@ async def get_redis_client() -> Redis:
     )
 
 
-# ====================== Cache ======================
 async def get_cache(redis_client: Redis = Depends(get_redis_client)) -> CacheService:
     return CacheService(redis_client=redis_client)
 
 
-# ====================== External Client ======================
-async def get_client(cache: CacheService = Depends(get_cache)) -> ClientMainService:
-    return ClientMainService(cache=cache)
+async def get_client(cache: CacheService = Depends(get_cache)) -> ServiceClient:
+    return ServiceClient(cache=cache)
 
 
-# ====================== Type Aliases ======================
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 CacheDep   = Annotated[CacheService, Depends(get_cache)]
-ClientDep  = Annotated[ClientMainService, Depends(get_client)]
+ClientDep  = Annotated[ServiceClient, Depends(get_client)]
