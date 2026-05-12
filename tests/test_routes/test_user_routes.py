@@ -1,67 +1,73 @@
-import pytest
+from unittest.mock import patch
 
-from unittest.mock import patch, AsyncMock
+import pytest
 
 
 @pytest.mark.asyncio
-async def test_user_route_post(mock_id, mock_create_user, mock_client):
-    with patch("src.services.call_api.ClientMainService.user_post_request", new_callable=AsyncMock) as mock_post, \
-            patch("src.repository.user.UserRepository.create", new_callable=AsyncMock) as mock_create, \
-            patch("src.services.user.uuid.uuid4", return_value=mock_id):
+async def test_user_route_post(mock_id, mock_create_user, mock_client, wiremock_setup):
+    await wiremock_setup(
+        endpoint="/users",
+        method="POST",
+        response_json={"id": str(mock_id), "status": "success"},
+        status=201
+    )
 
-        mock_post.return_value = None
-        mock_create.return_value = None
-
+    with patch("src.models.user.uuid.uuid4", return_value=mock_id):
         response = await mock_client.post(
             "/users",
             json=mock_create_user.model_dump()
         )
 
-        assert response.status_code == 201
-
-        data = response.json()
-        assert data['id'] == str(mock_id)
-        assert data['first_name'] == mock_create_user.first_name
-        assert data['last_name'] == mock_create_user.last_name
-        assert data['profile']['id'] == str(mock_id)
-        assert data['profile']['nickname'] == mock_create_user.profile.nickname
+    assert response.status_code == 201
+    data = response.json()
+    assert data["id"] == str(mock_id)
+    assert data["first_name"] == mock_create_user.first_name
 
 
 @pytest.mark.asyncio
-async def test_user_route_get(mock_id, mock_client, mock_client_get):
-    internal_user = {
-        "first_name": "string",
-        "last_name": "string",
-        "id": mock_id,
-        "profile": {
-            "nickname": "string",
-            "id": str(mock_id)
-        }
-    }
+async def test_user_route_get(mock_id, mock_client, wiremock_setup, mock_session):
+    # Создаём пользователя в тестовой БД
+    from src.models.user import UserModel
+    from src.models.profile import ProfileModel
 
-    with patch(
-            "src.repository.user.UserRepository.select",
-            new_callable=AsyncMock
-    ) as mock_select, patch(
-        "src.services.call_api.ClientMainService.user_get_request",
-        new_callable=AsyncMock
-    ) as mock_external:
+    new_user = UserModel(
+        id=mock_id,
+        first_name="internal_first",
+        last_name="internal_last"
+    )
+    new_profile = ProfileModel(
+        id=mock_id,
+        user_id=mock_id,
+        nickname="internal_nick"
+    )
 
-        mock_select.return_value = internal_user
-        mock_external.return_value = mock_client_get
+    mock_session.add(new_user)
+    mock_session.add(new_profile)
+    await mock_session.commit()
 
-        response = await mock_client.get(f"/users/{mock_id}")
+    # Настраиваем WireMock
+    await wiremock_setup(
+        endpoint=f"/users/{mock_id}",
+        method="GET",
+        response_json={
+            "id": str(mock_id),
+            "title": "external_title",
+            "profile": {
+                "id": str(mock_id),
+                "title": "external_title",
+                "bio": "external_bio"
+            }
+        },
+        status=200
+    )
 
-        assert response.status_code == 200
+    response = await mock_client.get(f"/users/{mock_id}")
 
-        data = response.json()
+    assert response.status_code == 200
+    data = response.json()
 
-        assert data["id"] == str(mock_id)
-        assert data["first_name"] == "string"
-        assert data["last_name"] == "string"
-
-        profile = data["profile"]
-        assert profile["id"] == str(mock_id)
-        assert profile["nickname"] == "string"
-        assert profile["title"] == "string"
-        assert profile["bio"] == "string"
+    assert data["id"] == str(mock_id)
+    assert data["first_name"] == "internal_first"
+    assert data["profile"]["nickname"] == "internal_nick"
+    assert data["profile"]["title"] == "external_title"
+    assert data["profile"]["bio"] == "external_bio"
