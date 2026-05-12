@@ -40,34 +40,20 @@ class UserService:
             f'[CREATE USER] External user created user_id={external_user.id}'
         )
 
-        try:
-            new_profile = ProfileModel(
-                **user.profile.model_dump(exclude={'title', 'bio'}),
-                id=external_user.profile.id
-            )
+        new_profile = ProfileModel(
+            **user.profile.model_dump(exclude={'title', 'bio'}),
+            id=external_user.profile.id
+        )
 
-            new_user = UserModel(id=external_user.id, profile=new_profile)
+        new_user = UserModel(id=external_user.id, profile=new_profile)
 
-            for key, value in user.model_dump(exclude={'profile'}).items():
-                setattr(new_user, key, value)
+        for key, value in user.model_dump(exclude={'profile'}).items():
+            setattr(new_user, key, value)
 
-            await UserRepository.create(new_user, session)
-
-            user_service_logger.info(
-                f'[CREATE USER] User saved to DB user_id={external_user.id}'
-            )
-
-        except Exception as exc:
-            user_service_logger.error(
-                f'[CREATE USER] DB error, rolling back external user '
-                f'user_id={external_user.id} error={repr(exc)}'
-            )
-
-            await client.user_delete_request(external_user.id)
-            user_service_logger.info(
-                f'[CREATE USER] Rollback successful user_id={external_user.id}'
-            )
-            raise ServerError("Failed to save user in local database") from exc
+        await UserRepository.create(new_user, session)
+        user_service_logger.info(
+            f'[CREATE USER] User saved to DB user_id={external_user.id}'
+        )
 
         user_data = user.model_dump()
         user_data['id'] = external_user.id
