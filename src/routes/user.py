@@ -5,7 +5,7 @@ from starlette.status import HTTP_201_CREATED, HTTP_200_OK
 from fastapi import APIRouter, Depends
 
 from src.services.user import UserService
-from src.core.dependencies import SessionDep, ClientDep, get_session, get_client
+from src.core.dependencies import SessionDep, ClientDep, get_session, get_client, get_service, ServiceDep
 from src.schemas.user import UserCreate
 
 
@@ -15,6 +15,7 @@ router = APIRouter(
     dependencies=[
         Depends(get_session),
         Depends(get_client),
+        Depends(get_service),
     ]
 )
 
@@ -24,8 +25,9 @@ async def create_user(
         user: UserCreate,
         session: SessionDep,
         client: ClientDep,
+        service: ServiceDep
 ):
-    return await UserService.create_user(user, session, client)
+    return await service.create_user(user, session, client)
 
 
 @router.get('/users/{user_id}', status_code=HTTP_200_OK)
@@ -33,5 +35,6 @@ async def get_user(
         user_id: UUID,
         session: SessionDep,
         client: ClientDep,
+        service: ServiceDep
 ):
-    return await UserService.get_user(user_id, session, client)
+    return await service.get_user(user_id, session, client)

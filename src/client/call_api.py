@@ -18,7 +18,7 @@ logger = get_logger('call_api_logger')
 settings = Settings()
 
 
-class ServiceClient:
+class ClientUserService:
     def __init__(self, cache: CacheService, base_url: str = None):
         self.client = httpx.AsyncClient(
             base_url=base_url or settings.service1_base_url,

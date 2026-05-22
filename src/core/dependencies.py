@@ -4,10 +4,11 @@ from fastapi import Depends
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.services.user import UserService
 from src.core.config import Settings
 from src.db import async_session_maker
 from src.core.redis_cache import CacheService
-from src.client.call_api import ServiceClient
+from src.client.call_api import ClientUserService
 
 
 settings = Settings()
@@ -38,10 +39,15 @@ async def get_cache(redis_client: Redis = Depends(get_redis_client)) -> CacheSer
     return CacheService(redis_client=redis_client)
 
 
-async def get_client(cache: CacheService = Depends(get_cache)) -> ServiceClient:
-    return ServiceClient(cache=cache)
+async def get_client(cache: CacheService = Depends(get_cache)) -> ClientUserService:
+    return ClientUserService(cache=cache)
+
+
+async def get_service(cache: CacheService = Depends(get_cache)):
+    return UserService(cache=cache)
 
 
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 CacheDep   = Annotated[CacheService, Depends(get_cache)]
-ClientDep  = Annotated[ServiceClient, Depends(get_client)]
+ClientDep  = Annotated[ClientUserService, Depends(get_client)]
+ServiceDep = Annotated[UserService, Depends(get_service)]

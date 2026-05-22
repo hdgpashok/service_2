@@ -15,7 +15,7 @@ from src.core.dependencies import get_session, get_client
 from src.application import get_app
 from src.models.base import Base
 from src.core.redis_cache import CacheService
-from src.client.call_api import ServiceClient
+from src.client.call_api import ClientUserService
 
 app = get_app()
 
@@ -115,7 +115,7 @@ async def cache(redis_container):
 # ====================== CLIENTS ======================
 @pytest_asyncio.fixture(scope="function")
 async def mock_call_client(cache, mock_service_url):
-    client = ServiceClient(cache=cache, base_url=mock_service_url)
+    client = ClientUserService(cache=cache, base_url=mock_service_url)
     yield client
     await client.aclose() if hasattr(client, "aclose") else None
 

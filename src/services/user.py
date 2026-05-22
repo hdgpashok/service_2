@@ -2,14 +2,21 @@ import uuid
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.redis_cache import CacheService
+
 from src.models.profile import ProfileModel
 from src.models.user import UserModel
+
 from src.exceptions.server_error import ServerError
 from src.exceptions.not_found import ObjectNotFound
-from src.client.call_api import ServiceClient
+
+from src.client.call_api import ClientUserService
+from src.core.redis_cache import CacheService
+
 from src.schemas.profile import ProfileExternal, ProfileJoined
-from src.repository.user import UserRepository
 from src.schemas.user import UserCreate, UserExternal, UserJoined, UserOutput
+
+from src.repository.user import UserRepository
 
 from src.core.logger import get_logger
 
@@ -18,12 +25,15 @@ user_service_logger = get_logger('user_service')
 
 
 class UserService:
+    def __init__(self, cache: CacheService):
+        self.cache = cache
+        self.client = ClientUserService(cache)
 
     @staticmethod
     async def create_user(
             user: UserCreate,
             session: AsyncSession,
-            client: ServiceClient,
+            client: ClientUserService,
     ):
         external_user = UserExternal(
             id=uuid.uuid4(),
@@ -65,12 +75,20 @@ class UserService:
 
         return UserOutput.model_validate(user_data)
 
-    @staticmethod
     async def get_user(
+            self,
             user_id: uuid.UUID,
             session: AsyncSession,
-            client: ServiceClient,
+            client: ClientUserService
     ):
+
+        key = f'user:{user_id}'
+
+        cache_data = await self.cache.get(str(key))
+        if cache_data:
+            user_service_logger.info(f'[GET USER] Cache hit user_id={user_id}')
+            return cache_data
+
         internal = await UserRepository.select(user_id, session)
 
         if not internal:
@@ -102,7 +120,12 @@ class UserService:
                 "profile": profile,
             }
 
-            return UserJoined(**user_data)
+            result = UserJoined(**user_data)
+
+            user_service_logger.info(f'[GET USER] Caching user user_id={user_id}')
+            await self.cache.set(key, result.model_dump(), expire=3600)
+
+            return result
 
         except Exception as exc:
             user_service_logger.error(
