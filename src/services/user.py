@@ -1,8 +1,9 @@
 import uuid
 
+from src.utils import orm_to_dict
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.core.redis_cache import CacheService
 
 from src.models.profile import ProfileModel
 from src.models.user import UserModel
@@ -14,7 +15,7 @@ from src.client.call_api import ClientUserService
 from src.core.redis_cache import CacheService
 
 from src.schemas.profile import ProfileExternal, ProfileJoined
-from src.schemas.user import UserCreate, UserExternal, UserJoined, UserOutput
+from src.schemas.user import UserCreate, UserExternal, UserJoined, UserOutput, UserOut
 
 from src.repository.user import UserRepository
 
@@ -81,13 +82,11 @@ class UserService:
             session: AsyncSession,
             client: ClientUserService
     ):
-
         key = f'user:{user_id}'
 
-        cache_data = await self.cache.get(str(key))
-        if cache_data:
+        if cached := await self.cache.get(str(key)):
             user_service_logger.info(f'[GET USER] Cache hit user_id={user_id}')
-            return cache_data
+            return cached
 
         internal = await UserRepository.select(user_id, session)
 
@@ -97,33 +96,21 @@ class UserService:
         external = await client.user_get_request(user_id)
 
         try:
-            ext_dict = dict(external) if isinstance(external, dict) else getattr(external, '__dict__', {})
-            int_dict = dict(internal) if isinstance(internal, dict) else getattr(internal, '__dict__', {})
-
-            ext_profile = ext_dict.get("profile")
-            int_profile = int_dict.get("profile")
-
-            if hasattr(ext_profile, '__dict__'):
-                ext_profile = ext_profile.__dict__
-            if hasattr(int_profile, '__dict__'):
-                int_profile = int_profile.__dict__
-
-            profile_data = {**int_profile, **ext_profile}
-
-            profile = ProfileJoined.model_validate(profile_data)
-
-            user_data = {
-                "id": ext_dict.get("id") or int_dict.get("id"),
-                "first_name": int_dict.get("first_name"),
-                "last_name": int_dict.get("last_name"),
-                "title": ext_dict.get("title"),
-                "profile": profile,
+            profile_data = {
+                **(orm_to_dict(internal.profile) if internal.profile else {}),
+                **external['profile']
             }
 
-            result = UserJoined(**user_data)
+            result = UserJoined(
+                id=external['id'] or internal.id,
+                first_name=internal.first_name,
+                last_name=internal.last_name,
+                title=external['title'],
+                profile=ProfileJoined.model_validate(profile_data)
+            )
 
-            user_service_logger.info(f'[GET USER] Caching user user_id={user_id}')
             await self.cache.set(key, result.model_dump(), expire=3600)
+            user_service_logger.info(f'[GET USER] User merged and cached user_id={user_id}')
 
             return result
 
