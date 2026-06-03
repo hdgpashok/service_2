@@ -10,8 +10,8 @@ from src.exceptions.not_found import ObjectNotFound
 from src.client.call_api import ClientUserService
 from src.core.redis_cache import CacheService
 
-from src.schemas.profile import ProfileExternal, ProfileJoined
-from src.schemas.user import UserCreate, UserExternal, UserJoined, UserOutput
+from src.schemas.profile import ProfileExternal
+from src.schemas.user import UserCreate, UserExternal, UserOutput
 
 from src.repository.user import UserRepository
 
