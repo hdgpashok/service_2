@@ -19,7 +19,7 @@ async def test_create_user_success(mock_id, mock_create_user, mock_session):
 
 
 @pytest.mark.asyncio
-async def test_get_user_success(mock_id, mock_session):
+async def test_get_user_success(mock_id, mock_session, cache):
     mock_client = AsyncMock()
     mock_client.user_get_request = AsyncMock(return_value={
         "id": str(mock_id),
@@ -31,7 +31,6 @@ async def test_get_user_success(mock_id, mock_session):
         }
     })
 
-    # Мокаем репозиторий
     with patch("src.repository.user.UserRepository.select") as mock_select:
         mock_select.return_value = {
             "id": mock_id,
@@ -42,8 +41,8 @@ async def test_get_user_success(mock_id, mock_session):
                 "nickname": "internal_nick"
             }
         }
-
-        result = await UserService.get_user(mock_id, mock_session, mock_client)
+        service = UserService(cache=cache)
+        result = await service.get_user(mock_id, mock_session, mock_client)
 
     assert result.id == mock_id
     assert result.first_name == "internal_first"

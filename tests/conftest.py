@@ -4,6 +4,7 @@ import httpx
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
+from redis.asyncio import Redis
 
 from testcontainers.core.container import DockerContainer
 from testcontainers.postgres import PostgresContainer
@@ -11,11 +12,15 @@ from testcontainers.redis import RedisContainer
 
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 
-from src.core.dependencies import get_session, get_client
+from src.dependencies.client import get_client
+from src.dependencies.session import get_session
 from src.application import get_app
 from src.models.base import Base
 from src.core.redis_cache import CacheService
 from src.client.call_api import ClientUserService
+from src.schemas.profile import ProfileCreate
+from src.schemas.user import UserCreate
+
 
 app = get_app()
 
@@ -41,7 +46,7 @@ def redis_container():
 
 
 @pytest_asyncio.fixture(scope="function")
-async def wiremock_setup(mock_service_url):
+async def service_container_setup(mock_service_url):
     async def _setup(endpoint: str, method: str = "GET", response_json: dict | None = None, status: int = 200):
         payload = {
             "request": {"method": method.upper(), "url": endpoint},
@@ -58,14 +63,12 @@ async def wiremock_setup(mock_service_url):
 
     yield _setup
 
-    # Cleanup
     async with httpx.AsyncClient() as client:
         await client.delete(f"{mock_service_url}/__admin/mappings")
 
 
 @pytest.fixture(scope="session")
-def wiremock_container():
-    """WireMock контейнер"""
+def service_container():
     container = DockerContainer("wiremock/wiremock:latest")
     container.with_exposed_ports(8080)
     container.start()
@@ -74,13 +77,12 @@ def wiremock_container():
 
 
 @pytest.fixture(scope="session")
-def mock_service_url(wiremock_container):
-    host = wiremock_container.get_container_host_ip()
-    port = wiremock_container.get_exposed_port(8080)
+def mock_service_url(service_container):
+    host = service_container.get_container_host_ip()
+    port = service_container.get_exposed_port(8080)
     return f"http://{host}:{port}"
 
 
-# ====================== DATABASE & CACHE ======================
 @pytest_asyncio.fixture(scope="session")
 async def mock_async_engine(postgres_container):
     engine = create_async_engine(postgres_container, echo=False)
@@ -95,12 +97,11 @@ async def mock_session(mock_async_engine):
     async_session_maker = async_sessionmaker(mock_async_engine, expire_on_commit=False)
     async with async_session_maker() as session:
         yield session
-        await session.rollback()  # Важно для чистоты тестов
+        await session.rollback()
 
 
 @pytest_asyncio.fixture(scope="function")
 async def cache(redis_container):
-    from redis.asyncio import Redis
     redis_client = Redis(
         host=redis_container.get_container_host_ip(),
         port=redis_container.get_exposed_port(6379),
@@ -112,7 +113,6 @@ async def cache(redis_container):
     await redis_client.close()
 
 
-# ====================== CLIENTS ======================
 @pytest_asyncio.fixture(scope="function")
 async def mock_call_client(cache, mock_service_url):
     client = ClientUserService(cache=cache, base_url=mock_service_url)
@@ -134,7 +134,6 @@ async def mock_client(mock_session, mock_call_client):
     app.dependency_overrides.clear()
 
 
-# ====================== DATA ======================
 @pytest.fixture(scope="function")
 def mock_id():
     return uuid.uuid4()
@@ -142,13 +141,11 @@ def mock_id():
 
 @pytest.fixture(scope="session")
 def mock_create_profile():
-    from src.schemas.profile import ProfileCreate
     return ProfileCreate(nickname="test", title="test", bio="test")
 
 
 @pytest.fixture(scope="session")
 def mock_create_user(mock_create_profile):
-    from src.schemas.user import UserCreate
     return UserCreate(
         first_name="test",
         last_name="test",
