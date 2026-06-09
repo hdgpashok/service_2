@@ -1,6 +1,7 @@
 import uuid
 
-from src.utils import create_new_user, merge_user_data
+from schemas.profile import ProfileExternal
+from src.utils import merge_user_data, create_new_user
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -10,12 +11,12 @@ from src.exceptions.not_found import ObjectNotFound
 from src.client.call_api import ClientUserService
 from src.core.redis_cache import CacheService
 
-from src.schemas.profile import ProfileExternal
 from src.schemas.user import UserCreate, UserExternal, UserOutput
-
 from src.repository.user import UserRepository
 
 from src.core.logger import get_logger
+
+from src.saga_coordinator import SagaCoordinator
 
 
 user_service_logger = get_logger('user_service')
@@ -41,12 +42,11 @@ class UserService:
                 bio=user.profile.bio
             )
         )
-
-        await client.user_post_request(external_user)
-
         new_user = create_new_user(user, external_user)
 
-        await UserRepository.create(new_user, session)
+        saga_coordinator = SagaCoordinator(client)
+        await saga_coordinator.create_user_saga(external_user, new_user, session)
+
         user_service_logger.info(
             f'[CREATE USER] User saved to DB user_id={external_user.id}'
         )
