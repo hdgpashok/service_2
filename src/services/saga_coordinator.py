@@ -14,14 +14,12 @@ logger = get_logger('saga_logger')
 
 
 class SagaCoordinator:
-    def __init__(self, client: ClientUserService):
-        self.client = client
+    def __init__(self):
+        self.client = ClientUserService()
 
     async def create_user_saga(self, external_user: UserExternal, new_user: UserModel, session: AsyncSession):
         try:
-
             await self.client.user_post_request(external_user)
-
             await UserRepository.create(new_user, session)
 
         except Exception as e:

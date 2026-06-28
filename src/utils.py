@@ -1,4 +1,6 @@
-from src.schemas.profile import ProfileJoined
+import uuid
+
+from src.schemas.profile import ProfileJoined, ProfileExternal
 from src.schemas.user import UserCreate, UserExternal, UserJoined
 from src.models.user import UserModel
 from src.models.profile import ProfileModel
@@ -39,4 +41,16 @@ def merge_user_data(internal, external):
         last_name=internal.last_name,
         title=external['title'],
         profile=ProfileJoined.model_validate(profile_data)
+    )
+
+
+def create_external_schema(user: UserCreate):
+    return UserExternal(
+        id=uuid.uuid4(),
+        title=user.title,
+        profile=ProfileExternal(
+            id=uuid.uuid4(),
+            title=user.profile.title,
+            bio=user.profile.bio
+        )
     )

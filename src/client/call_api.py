@@ -19,12 +19,11 @@ settings = Settings()
 
 
 class ClientUserService:
-    def __init__(self, cache: CacheService, base_url: str = None):
+    def __init__(self, base_url: str = None):
         self.client = httpx.AsyncClient(
             base_url=base_url or settings.service1_base_url,
             timeout=settings.HTTP_TIMEOUT,
         )
-        self.cache = cache
 
     @retry(
         retry_if_result=lambda resp: (
@@ -33,12 +32,6 @@ class ClientUserService:
         retry_exceptions=(httpx.TimeoutException, httpx.ConnectError),
     )
     async def user_get_request(self, user_id: UUID):
-        key = f'user:{user_id}'
-
-        cache_data = await self.cache.get(key)
-        if cache_data:
-            logger.info(f'[GET USER] Cache hit user_id={user_id}')
-            return cache_data
 
         resp: httpx.Response = await self.client.get(f"/users/{user_id}")
 
@@ -52,9 +45,6 @@ class ClientUserService:
         )
 
         data = ujson.loads(resp.text)
-
-        logger.info(f'[GET USER] Caching user user_id={user_id}')
-        await self.cache.set(key, data, expire=3600)
 
         logger.info(f'[GET USER] Success user_id={user_id}')
         return data

@@ -4,11 +4,6 @@ import ujson
 from redis.asyncio import Redis
 from redis.exceptions import RedisError
 
-from src.core.config import Settings
-
-
-settings = Settings()
-
 
 class CacheService:
     def __init__(self, redis_client: Redis):
