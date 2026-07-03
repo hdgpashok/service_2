@@ -43,5 +43,4 @@ class SagaCoordinator:
             status=CompensationStatus.PENDING
         )
         session.add(task)
-        await session.commit()
         logger.info(f'Created compensation task for user id={user_id}')
