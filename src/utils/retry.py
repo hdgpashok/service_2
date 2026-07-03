@@ -2,16 +2,30 @@ import logging
 from typing import Callable, Any
 from functools import wraps
 
-from src.core.config import settings
-from src.core.logger import get_logger
-from src.core.timeout import timeout_with_jitter
+from src.utils.config import settings
+from src.utils.logger import get_logger
+from src.utils.timeout import timeout_with_jitter
 from src.exceptions.timeout_error import ServerTimeoutError
+
+from starlette.status import (
+    HTTP_500_INTERNAL_SERVER_ERROR,
+    HTTP_502_BAD_GATEWAY,
+    HTTP_503_SERVICE_UNAVAILABLE,
+    HTTP_504_GATEWAY_TIMEOUT,
+    HTTP_429_TOO_MANY_REQUESTS
+)
 
 
 logger = get_logger('retry_logger')
 
 
-RETRY_STATUSES = [500, 502, 503, 504, 408, 409, 429]
+RETRY_STATUSES = [
+    HTTP_500_INTERNAL_SERVER_ERROR,
+    HTTP_502_BAD_GATEWAY,
+    HTTP_503_SERVICE_UNAVAILABLE,
+    HTTP_504_GATEWAY_TIMEOUT,
+    HTTP_429_TOO_MANY_REQUESTS
+]
 
 logger = logging.getLogger("retry_logger")
 

@@ -4,18 +4,15 @@ import httpx
 import ujson
 
 from src.schemas.user import UserExternal
-from src.core.config import Settings
-from src.core.logger import get_logger
-from src.core.retry import retry, RETRY_STATUSES
-from src.core.redis_cache import CacheService
+from src.utils.config import settings
+from src.utils.logger import get_logger
+from src.utils.retry import retry, RETRY_STATUSES
 from src.exceptions.not_found import ObjectNotFound
 
 from starlette.status import HTTP_404_NOT_FOUND
 
 
 logger = get_logger('call_api_logger')
-
-settings = Settings()
 
 
 class ClientUserService:

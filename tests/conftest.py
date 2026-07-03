@@ -16,8 +16,8 @@ from src.dependencies.client import get_client
 from src.dependencies.session import get_session
 from src.application import get_app
 from src.models.base import Base
-from src.core.redis_cache import CacheService
-from src.client.call_api import ClientUserService
+from redis_cache import CacheService
+from src.client.client_main_service import ClientUserService
 from src.schemas.profile import ProfileCreate
 from src.schemas.user import UserCreate
 

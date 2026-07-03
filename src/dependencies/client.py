@@ -2,8 +2,7 @@ from typing import Annotated
 
 from fastapi import Depends
 
-from src.client.call_api import ClientUserService
-from src.dependencies.cache_service import CacheDep
+from src.client.client_main_service import ClientUserService
 
 
 async def get_client() -> ClientUserService:

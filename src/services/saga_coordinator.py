@@ -5,8 +5,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.exceptions.saga_error import SagaError
 from src.models.user import UserModel
 from src.repository.user import UserRepository
-from src.client.call_api import ClientUserService
-from src.core.logger import get_logger
+from src.client.client_main_service import ClientUserService
+from src.utils.logger import get_logger
 from src.schemas.user import UserExternal
 
 from src.models.compensation_task import CompensationTask, CompensationStatus

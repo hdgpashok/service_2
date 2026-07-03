@@ -2,10 +2,10 @@ import asyncio
 
 from sqlalchemy import select
 
-from db import async_session_maker
+from src.db import async_session_maker
 from src.models.compensation_task import CompensationTask, CompensationStatus
-from src.client.call_api import ClientUserService
-from src.core.logger import get_logger
+from src.client.client_main_service import ClientUserService
+from src.utils.logger import get_logger
 
 logger = get_logger('compensation_worker')
 

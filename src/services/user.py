@@ -1,19 +1,19 @@
 import uuid
 
-from src.utils import merge_user_data, create_new_user, create_external_schema
+from src.utils.mapping import merge_user_data, create_new_user, create_external_schema
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.exceptions.server_error import ServerError
 from src.exceptions.not_found import ObjectNotFound
 
-from src.client.call_api import ClientUserService
-from src.core.redis_cache import CacheService
+from src.client.client_main_service import ClientUserService
+from redis_cache import CacheService
 
 from src.schemas.user import UserCreate, UserOutput
 from src.repository.user import UserRepository
 
-from src.core.logger import get_logger
+from utils.logger import get_logger
 
 from services.saga_coordinator import SagaCoordinator
 

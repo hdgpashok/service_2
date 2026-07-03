@@ -3,8 +3,8 @@ from typing import Annotated
 from fastapi import Depends
 from redis.asyncio import Redis
 
-from src.core.config import settings
-from src.core.redis_cache import CacheService
+from src.utils.config import settings
+from src.redis_cache import CacheService
 
 
 async def get_redis_client() -> Redis:
