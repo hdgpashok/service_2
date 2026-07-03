@@ -9,22 +9,21 @@ from src.exceptions.server_error import ServerError
 from src.exceptions.not_found import ObjectNotFound
 
 from src.client.client_main_service import ClientUserService
-from redis_cache import CacheService
+from src.redis_cache import CacheService
 
 from src.schemas.user import UserCreate, UserOutput
 from src.repository.user import UserRepository
 
-from utils.logger import get_logger
+from src.utils.logger import get_logger
 
-from src.dependencies.coordinator import CoordinatorDep
 
 user_service_logger = get_logger('user_service')
 
 
 class UserService:
-    def __init__(self, cache: CacheService, coordinator: SagaCoordinator):
+    def __init__(self, cache: CacheService, client: ClientUserService, coordinator: SagaCoordinator):
         self.cache = cache
-        self.client = ClientUserService()
+        self.client = client
         self.coordinator = coordinator
 
     async def create_user(
