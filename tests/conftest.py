@@ -13,7 +13,7 @@ from testcontainers.redis import RedisContainer
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 
 from src.dependencies.client import get_client
-from src.dependencies.session import get_session
+from session import get_session
 from src.application import get_app
 from src.models.base import Base
 from redis_cache import CacheService

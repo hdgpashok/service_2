@@ -1,5 +1,6 @@
 import uuid
 
+from src.services.saga_coordinator import SagaCoordinator
 from src.utils.mapping import merge_user_data, create_new_user, create_external_schema
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,31 +16,26 @@ from src.repository.user import UserRepository
 
 from utils.logger import get_logger
 
-from services.saga_coordinator import SagaCoordinator
-
+from src.dependencies.coordinator import CoordinatorDep
 
 user_service_logger = get_logger('user_service')
 
 
 class UserService:
-    def __init__(self, cache: CacheService):
+    def __init__(self, cache: CacheService, coordinator: SagaCoordinator):
         self.cache = cache
         self.client = ClientUserService()
+        self.coordinator = coordinator
 
-    @staticmethod
     async def create_user(
+            self,
             user: UserCreate,
             session: AsyncSession,
     ):
         external_user = create_external_schema(user)
         new_user = create_new_user(user, external_user)
 
-        saga_coordinator = SagaCoordinator()
-        await saga_coordinator.create_user_saga(external_user, new_user, session)
-
-        user_service_logger.info(
-            f'[CREATE USER] User saved to DB user_id={external_user.id}'
-        )
+        await self.coordinator.create_user_saga(external_user, new_user, session)
 
         user_data = user.model_dump()
         user_data['id'] = external_user.id
@@ -55,7 +51,6 @@ class UserService:
             self,
             user_id: uuid.UUID,
             session: AsyncSession,
-            client: ClientUserService
     ):
         key = f'user:{user_id}'
 
@@ -68,7 +63,7 @@ class UserService:
         if not internal:
             raise ObjectNotFound(object_id=user_id)
 
-        external = await client.user_get_request(user_id)
+        external = await self.client.user_get_request(user_id)
 
         try:
             result = merge_user_data(internal, external)
