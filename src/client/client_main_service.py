@@ -36,14 +36,8 @@ class ClientUserService:
             logger.warning(f'[GET USER] Not found user_id={user_id}')
             raise ObjectNotFound(object_id=user_id)
 
-        logger.info(
-            f'[GET USER] Response received user_id={user_id} '
-            f'status_code={resp.status_code}'
-        )
-
         data = ujson.loads(resp.text)
 
-        logger.info(f'[GET USER] Success user_id={user_id}')
         return data
 
     @retry(
@@ -60,13 +54,6 @@ class ClientUserService:
             json=user.model_dump(mode='json')
         )
 
-        logger.info(
-            f'[POST USER] Response received user_id={user.id} '
-            f'status_code={resp.status_code}'
-        )
-
-        logger.info(f'[POST USER] Success user_id={user.id}')
-
     @retry(
         retry_if_result=lambda resp: (
                 isinstance(resp, httpx.Response) and resp.status_code in RETRY_STATUSES
@@ -76,15 +63,6 @@ class ClientUserService:
     async def user_delete_request(self, user_id: UUID):
         logger.info(f'[DELETE USER] Start request user_id={user_id}')
 
-        try:
-            await self.client.delete(
-                f'{settings.service1_base_url}/users/{user_id}'
-            )
-
-        except Exception as delete_exc:
-            logger.critical(
-                f'[CREATE USER] CRITICAL: Failed to rollback external user! '
-                f'user_id={user_id} error={repr(delete_exc)}'
-            )
-
-        logger.info(f'[DELETE USER] Success user_id={user_id}')
+        await self.client.delete(
+            f'{settings.service1_base_url}/users/{user_id}'
+        )

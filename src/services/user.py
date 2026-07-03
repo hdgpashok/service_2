@@ -30,7 +30,6 @@ class UserService:
     async def create_user(
             user: UserCreate,
             session: AsyncSession,
-            client: ClientUserService,
     ):
         external_user = create_external_schema(user)
         new_user = create_new_user(user, external_user)
