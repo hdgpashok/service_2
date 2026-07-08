@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.exceptions.server_error import ServerError
 from src.exceptions.not_found import ObjectNotFound
 
-from src.client.client_main_service import ClientUserService
+from src.client.client_main_user_service import ClientUserService
 from src.redis_cache import CacheService
 
 from src.schemas.user import UserCreate, UserOutput

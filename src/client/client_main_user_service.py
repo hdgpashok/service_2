@@ -1,7 +1,7 @@
+import json
 from uuid import UUID
 
 import httpx
-import ujson
 
 from src.schemas.user import UserExternal
 from src.utils.config import settings
@@ -36,7 +36,7 @@ class ClientUserService:
             logger.warning(f'[GET USER] Not found user_id={user_id}')
             raise ObjectNotFound(object_id=user_id)
 
-        data = ujson.loads(resp.text)
+        data = json.loads(resp.text)
 
         return data
 
