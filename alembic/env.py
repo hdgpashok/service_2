@@ -8,6 +8,7 @@ from alembic import context
 from src.models.base import Base
 from src.models.user import UserModel
 from src.models.profile import ProfileModel
+from src.models.compensation_task import CompensationTask
 
 
 # this is the Alembic Config object, which provides
