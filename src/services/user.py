@@ -15,6 +15,7 @@ from src.schemas.user import UserCreate, UserOutput
 from src.repository.user import UserRepository
 
 from src.utils.logger import get_logger
+from src.utils.user_to_outbox import user_create_to_outbox
 
 
 user_service_logger = get_logger('user_service')
@@ -33,8 +34,8 @@ class UserService:
     ):
         external_user = create_external_schema(user)
         new_user = create_new_user(user, external_user)
-
-        await self.coordinator.create_user_saga(external_user, new_user, session)
+        outbox_user = user_create_to_outbox(external_user)
+        await self.coordinator.create_user_saga(outbox_user, new_user, session)
 
         user_data = user.model_dump()
         user_data['id'] = external_user.id
