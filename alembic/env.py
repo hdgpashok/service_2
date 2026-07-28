@@ -9,6 +9,7 @@ from src.models.base import Base
 from src.models.user import UserModel
 from src.models.profile import ProfileModel
 from src.models.compensation_task import CompensationTask
+from src.models.outbox import TransactionalOutbox
 
 
 # this is the Alembic Config object, which provides
