@@ -1,6 +1,5 @@
 import asyncio
 import json
-import random
 
 from aiokafka import AIOKafkaProducer
 
@@ -11,29 +10,27 @@ def serializer(message):
     return json.dumps(message).encode()
 
 
-async def produce():
-    producer = AIOKafkaProducer(
-        bootstrap_servers=f'{settings.KAFKA_HOST}:{settings.KAFKA_PORT}',
-        value_serializer=serializer,
-        compression_type="gzip",
-        enable_idempotence=True,
-        acks='all',
-    )
+class Publisher:
+    def __init__(self):
+        self.producer = AIOKafkaProducer
 
-    await producer.start()
+    async def start_producer(self,):
+        self.producer = AIOKafkaProducer(
+            bootstrap_servers=f'{settings.KAFKA_HOST}:{settings.KAFKA_PORT}',
+            value_serializer=serializer,
+            compression_type="gzip",
+            enable_idempotence=True,
+            acks='all',
+        )
+        await self.producer.start()
 
-    try:
-        while True:
-            data = {
-                "temp": random.randint(10, 20),
-                "weather": random.choice(("rainy", "sunny"))
+    async def stop_producer(self):
+        if self.producer:
+            await self.producer.stop()
 
-            }
-            await producer.send(settings.KAFKA_TOPIC, data)
-            await asyncio.sleep(random.randint(1, 5))
-    finally:
-        await producer.stop()
-
-
-if __name__ == '__main__':
-    asyncio.run(produce())
+    async def send(self, topic: str, payload: dict, key: str | None = None):
+        await self.producer.send(
+            topic=topic,
+            value=payload,
+            key=key.encode() if key else None,
+        )
