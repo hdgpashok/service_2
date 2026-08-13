@@ -34,8 +34,8 @@ class UserService:
     ):
         external_user = create_external_schema(user)
         new_user = create_new_user(user, external_user)
-        outbox_user = user_create_to_outbox(external_user)
-        await self.coordinator.create_user_saga(outbox_user, new_user, session)
+
+        await self.coordinator.create_user_saga(external_user, new_user, session)
 
         user_data = user.model_dump()
         user_data['id'] = external_user.id

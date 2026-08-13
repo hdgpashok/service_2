@@ -1,7 +1,7 @@
 import pytest
 from sqlalchemy import select
 
-from src.models.outbox import TransactionalOutbox, OutboxStatus
+from src.models.outbox import OutboxEvent, OutboxStatus
 from src.exceptions.not_found import ObjectNotFound
 
 
@@ -24,7 +24,7 @@ async def test_create_user_writes_outbox(user_service, user_create_data, session
     result = await user_service.create_user(user_create_data, session)
     await session.commit()
 
-    rows = await session.execute(select(TransactionalOutbox))
+    rows = await session.execute(select(OutboxEvent))
     events = list(rows.scalars().all())
 
     assert len(events) == 1

@@ -3,39 +3,47 @@ import uuid
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models.outbox import TransactionalOutbox, OutboxStatus
+from src.session import SessionDep
+from src.models.outbox import OutboxEvent, OutboxStatus
 
 
 class OutboxRepository:
+    def __init__(self, session: AsyncSession):
+        self.session = session
 
-    @staticmethod
-    async def create(payload: TransactionalOutbox, session: AsyncSession) -> None:
-        session.add(payload)
+    async def create(self, payload: OutboxEvent) -> None:
+        self.session.add(payload)
 
-    @staticmethod
-    async def get_pending(session: AsyncSession, limit: int = 20) -> list[TransactionalOutbox]:
+    async def get_pending(self, limit: int = 20) -> list[OutboxEvent]:
         stmt = (
-            select(TransactionalOutbox)
-            .where(TransactionalOutbox.status == OutboxStatus.PENDING)
-            .order_by(TransactionalOutbox.created_ad)
+            select(OutboxEvent)
+            .where(OutboxEvent.status == OutboxStatus.PENDING)
+            .order_by(OutboxEvent.created_ad)
             .limit(limit)
             .with_for_update(skip_locked=True)
         )
-        result = await session.execute(stmt)
+        result = await self.session.execute(stmt)
         return list(result.scalars().all())
 
-    @staticmethod
-    async def mark_sent(event_id: uuid.UUID, session: AsyncSession) -> None:
-        await session.execute(
-            update(TransactionalOutbox)
-            .where(TransactionalOutbox.id == event_id)
+    async def mark_processing(self, event_ids: list[uuid.UUID]) -> None:
+        if not event_ids:
+            return
+        await self.session.execute(
+            update(OutboxEvent)
+            .where(OutboxEvent.id.in_(event_ids))
+            .values(status=OutboxStatus.PROCESSING)
+        )
+
+    async def mark_sent(self, event_id: uuid.UUID) -> None:
+        await self.session.execute(
+            update(OutboxEvent)
+            .where(OutboxEvent.id == event_id)
             .values(status=OutboxStatus.SENT)
         )
 
-    @staticmethod
-    async def mark_failed(event_id: uuid.UUID, session: AsyncSession) -> None:
-        await session.execute(
-            update(TransactionalOutbox)
-            .where(TransactionalOutbox.id == event_id)
+    async def mark_failed(self, event_id: uuid.UUID) -> None:
+        await self.session.execute(
+            update(OutboxEvent)
+            .where(OutboxEvent.id == event_id)
             .values(status=OutboxStatus.FAILED)
         )

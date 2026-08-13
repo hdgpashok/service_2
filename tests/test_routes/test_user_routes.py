@@ -1,7 +1,7 @@
 import pytest
 from sqlalchemy import select
 
-from src.models.outbox import TransactionalOutbox, OutboxStatus
+from src.models.outbox import OutboxEvent, OutboxStatus
 
 
 @pytest.mark.asyncio
@@ -30,7 +30,7 @@ async def test_route_create_user_writes_outbox(api_client, user_create_payload, 
     )
     assert response.status_code == 201
 
-    rows = await session.execute(select(TransactionalOutbox))
+    rows = await session.execute(select(OutboxEvent))
     events = list(rows.scalars().all())
 
     assert len(events) == 1
