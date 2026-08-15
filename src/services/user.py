@@ -15,7 +15,6 @@ from src.schemas.user import UserCreate, UserOutput
 from src.repository.user import UserRepository
 
 from src.utils.logger import get_logger
-from src.utils.user_to_outbox import user_create_to_outbox
 
 
 user_service_logger = get_logger('user_service')

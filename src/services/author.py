@@ -10,6 +10,9 @@ from src.models.authors import AuthorModel
 
 from src.schemas.author import AuthorOut, AuthorCreate
 from src.repository.author import AuthorRepository
+from src.repository.outbox import OutboxRepository
+
+from src.utils.author_to_outbox import author_create_to_outbox
 
 
 class AuthorService:
@@ -34,5 +37,10 @@ class AuthorService:
         )
 
         repo = AuthorRepository(session)
+        outbox_repo = OutboxRepository(session)
 
-        return await repo.create(new_author)
+        res = await repo.create(new_author)
+        outbox_author = author_create_to_outbox(new_author)
+        await outbox_repo.create(outbox_author)
+
+        return res
