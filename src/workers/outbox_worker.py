@@ -1,7 +1,9 @@
 import asyncio
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from src.utils.kafka_producer import Publisher
+from src.utils.config import settings
 from src.db import async_session_maker
 from src.repository.outbox import OutboxRepository
 from src.utils.logger import get_logger
@@ -29,15 +31,41 @@ class OutboxWorker:
 
             await repo.mark_processing([event.id for event in events])
             await session.commit()
-            return events
 
-    async def mark_result(self, event_id: UUID, success: bool) -> None:
+            return [
+                {
+                    "id": event.id,
+                    "topic": event.topic,
+                    "payload": event.payload,
+                    "attempts": event.attempts,
+                }
+                for event in events
+            ]
+
+    async def mark_sent(self, event_id: UUID) -> None:
         async with async_session_maker() as session:
             repo = OutboxRepository(session)
-            if success:
-                await repo.mark_sent(event_id)
+            await repo.mark_sent(event_id)
+            await session.commit()
+
+    async def mark_failure(self, event_id: UUID, attempts: int, error: str) -> None:
+        async with async_session_maker() as session:
+            repo = OutboxRepository(session)
+
+            if attempts + 1 >= settings.MAX_RETRIES:
+                await repo.mark_failed(event_id, error)
+                logger.warning(
+                    f"[OutboxWorker] id={event_id} exhausted retries, status=FAILED"
+                )
             else:
-                await repo.mark_failed(event_id)
+                delay = settings.BASE_KAFKA_DELAY * (2 ** attempts)
+                next_attempt_at = datetime.now(timezone.utc) + timedelta(seconds=delay)
+                await repo.reschedule(event_id, next_attempt_at, error)
+                logger.info(
+                    f"[OutboxWorker] id={event_id} attempt={attempts + 1} "
+                    f"scheduled retry in {delay:.0f}s"
+                )
+
             await session.commit()
 
     async def process_batch(self) -> int:
@@ -48,15 +76,15 @@ class OutboxWorker:
         for event in events:
             try:
                 await self.publisher.send(
-                    topic=event.topic,
-                    payload=event.payload,
-                    key=str(event.id),
+                    topic=event["topic"],
+                    payload=event["payload"],
+                    key=str(event["id"]),
                 )
-                await self.mark_result(event.id, success=True)
-                logger.info(f"[OutboxWorker] sent id={event.id} topic={event.topic}")
+                await self.mark_sent(event["id"])
+                logger.info(f"[OutboxWorker] sent id={event['id']} topic={event['topic']}")
             except Exception as e:
-                await self.mark_result(event.id, success=False)
-                logger.exception(f"[OutboxWorker] failed id={event.id}: {e}")
+                logger.exception(f"[OutboxWorker] failed id={event['id']}: {e}")
+                await self.mark_failure(event["id"], event["attempts"], str(e))
 
         return len(events)
 

@@ -1,9 +1,9 @@
 import uuid
+from datetime import datetime, timezone
 
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.session import SessionDep
 from src.models.outbox import OutboxEvent, OutboxStatus
 
 
@@ -15,9 +15,14 @@ class OutboxRepository:
         self.session.add(payload)
 
     async def get_pending(self, limit: int = 20) -> list[OutboxEvent]:
+        now = datetime.now(timezone.utc)
         stmt = (
             select(OutboxEvent)
-            .where(OutboxEvent.status == OutboxStatus.PENDING)
+            .where(
+                OutboxEvent.status == OutboxStatus.PENDING,
+                (OutboxEvent.next_attempt_at.is_(None))
+                | (OutboxEvent.next_attempt_at <= now),
+                )
             .order_by(OutboxEvent.created_ad)
             .limit(limit)
             .with_for_update(skip_locked=True)
@@ -46,4 +51,18 @@ class OutboxRepository:
             update(OutboxEvent)
             .where(OutboxEvent.id == event_id)
             .values(status=OutboxStatus.FAILED)
+        )
+
+    async def reschedule(
+            self, event_id: uuid.UUID, next_attempt_at: datetime, error: str
+    ) -> None:
+        await self.session.execute(
+            update(OutboxEvent)
+            .where(OutboxEvent.id == event_id)
+            .values(
+                status=OutboxStatus.PENDING,
+                attempts=OutboxEvent.attempts + 1,
+                next_attempt_at=next_attempt_at,
+                last_error=error[:500],
+            )
         )
