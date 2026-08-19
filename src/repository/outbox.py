@@ -1,7 +1,8 @@
 import uuid
 from datetime import datetime, timezone
+from typing import Callable
 
-from sqlalchemy import select, update
+from sqlalchemy import select, update, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.outbox import OutboxEvent, OutboxStatus
@@ -19,10 +20,15 @@ class OutboxRepository:
         stmt = (
             select(OutboxEvent)
             .where(
-                OutboxEvent.status == OutboxStatus.PENDING,
-                (OutboxEvent.next_attempt_at.is_(None))
-                | (OutboxEvent.next_attempt_at <= now),
-                )
+                or_(
+                    OutboxEvent.status == OutboxStatus.PENDING,
+                    OutboxEvent.status == OutboxStatus.PROCESSING,
+                    ),
+                or_(
+                    OutboxEvent.next_attempt_at.is_(None),
+                    OutboxEvent.next_attempt_at <= now,
+                    ),
+            )
             .order_by(OutboxEvent.created_ad)
             .limit(limit)
             .with_for_update(skip_locked=True)
@@ -53,16 +59,30 @@ class OutboxRepository:
             .values(status=OutboxStatus.FAILED)
         )
 
-    async def reschedule(
-            self, event_id: uuid.UUID, next_attempt_at: datetime, error: str
-    ) -> None:
+    async def reschedule(self, event_id: uuid.UUID, next_attempt_at: datetime) -> None:
         await self.session.execute(
             update(OutboxEvent)
             .where(OutboxEvent.id == event_id)
-            .values(
-                status=OutboxStatus.PENDING,
-                attempts=OutboxEvent.attempts + 1,
-                next_attempt_at=next_attempt_at,
-                last_error=error[:500],
-            )
+            .values(status=OutboxStatus.PENDING, next_attempt_at=next_attempt_at)
         )
+
+    async def register_failure(
+            self,
+            event_id: uuid.UUID,
+            error: str,
+            decide: Callable[[int], tuple[OutboxStatus, datetime | None]],
+    ) -> None:
+        result = await self.session.execute(
+            update(OutboxEvent)
+            .where(OutboxEvent.id == event_id)
+            .values(attempts=OutboxEvent.attempts + 1, last_error=error[:500])
+            .returning(OutboxEvent.attempts)
+        )
+        attempts = result.scalar_one()
+
+        status, next_attempt_at = decide(attempts)
+
+        if status == OutboxStatus.FAILED:
+            await self.mark_failed(event_id)
+        else:
+            await self.reschedule(event_id, next_attempt_at)

@@ -4,7 +4,7 @@ from uuid import UUID
 import httpx
 
 from src.schemas.user import UserExternal
-from src.utils.config import settings
+from src.config.config import settings
 from src.utils.logger import get_logger
 from src.utils.retry import retry, RETRY_STATUSES
 from src.exceptions.not_found import ObjectNotFound

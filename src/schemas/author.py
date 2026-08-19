@@ -2,7 +2,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
 
-from src.schemas.book import BookCreate, BookOut
+from src.schemas.book import BookCreate, BookResponse
 
 
 class AuthorBase(BaseModel):
@@ -14,8 +14,8 @@ class AuthorCreate(AuthorBase):
     books: list[BookCreate]
 
 
-class AuthorOut(AuthorBase):
+class AuthorResponse(AuthorBase):
     id: UUID
-    books: list[BookOut]
+    books: list[BookResponse]
 
     model_config = ConfigDict(from_attributes=True)

@@ -4,9 +4,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from src.exceptions.server_error import ServerError
 from src.exceptions.saga_error import SagaError
 from src.models.user import UserModel
-from src.models.outbox import OutboxEvent
 from src.repository.user import UserRepository
-from src.repository.outbox import OutboxRepository
 from src.client.client_main_user_service import ClientUserService
 from src.utils.logger import get_logger
 from src.schemas.user import UserExternal

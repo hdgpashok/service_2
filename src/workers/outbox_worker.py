@@ -2,8 +2,9 @@ import asyncio
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
-from src.utils.kafka_producer import Publisher
-from src.utils.config import settings
+from src.config.kafka_producer import KafkaProducer
+from src.config.config import settings
+from src.models.outbox import OutboxStatus
 from src.db import async_session_maker
 from src.repository.outbox import OutboxRepository
 from src.utils.logger import get_logger
@@ -13,7 +14,7 @@ logger = get_logger("outbox_worker")
 
 class OutboxWorker:
     def __init__(self) -> None:
-        self.publisher = Publisher()
+        self.publisher = KafkaProducer()
 
     async def start(self) -> None:
         await self.publisher.start_producer()
@@ -23,13 +24,22 @@ class OutboxWorker:
         await self.publisher.stop_producer()
         logger.info("[OutboxWorker] stopped")
 
+    def decide_retry_outcome(self, attempts: int) -> tuple[OutboxStatus, datetime | None]:
+        if attempts >= settings.MAX_RETRIES:
+            return OutboxStatus.FAILED, None
+
+        delay = settings.BASE_KAFKA_DELAY * (2 ** (attempts - 1))
+        next_attempt_at = datetime.now(timezone.utc) + timedelta(seconds=delay)
+        return OutboxStatus.PENDING, next_attempt_at
+
     async def claim_events(self, limit: int = 20):
         async with async_session_maker() as session:
             repo = OutboxRepository(session)
 
             events = await repo.get_pending(limit=limit)
 
-            await repo.mark_processing([event.id for event in events])
+            events_ids = [event.id for event in events]
+            await repo.mark_processing(events_ids)
             await session.commit()
 
             return [
@@ -48,25 +58,12 @@ class OutboxWorker:
             await repo.mark_sent(event_id)
             await session.commit()
 
-    async def mark_failure(self, event_id: UUID, attempts: int, error: str) -> None:
+    async def mark_failure(self, event_id: UUID, error: str) -> None:
         async with async_session_maker() as session:
             repo = OutboxRepository(session)
-
-            if attempts + 1 >= settings.MAX_RETRIES:
-                await repo.mark_failed(event_id, error)
-                logger.warning(
-                    f"[OutboxWorker] id={event_id} exhausted retries, status=FAILED"
-                )
-            else:
-                delay = settings.BASE_KAFKA_DELAY * (2 ** attempts)
-                next_attempt_at = datetime.now(timezone.utc) + timedelta(seconds=delay)
-                await repo.reschedule(event_id, next_attempt_at, error)
-                logger.info(
-                    f"[OutboxWorker] id={event_id} attempt={attempts + 1} "
-                    f"scheduled retry in {delay:.0f}s"
-                )
-
+            await repo.register_failure(event_id, error, decide=self.decide_retry_outcome)
             await session.commit()
+            logger.info(f"[OutboxWorker] id={event_id} failure registered")
 
     async def process_batch(self) -> int:
         events = await self.claim_events()

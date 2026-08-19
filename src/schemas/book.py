@@ -11,7 +11,7 @@ class BookCreate(BookBase):
     pass
 
 
-class BookOut(BookBase):
+class BookResponse(BookBase):
     id: UUID
 
     model_config = ConfigDict(from_attributes=True)

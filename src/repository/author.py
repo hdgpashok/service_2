@@ -4,7 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from src.schemas.author import AuthorOut
+from src.schemas.author import AuthorResponse
 from src.models.authors import AuthorModel
 
 
@@ -21,8 +21,8 @@ class AuthorRepository:
         result = await self.session.execute(query)
         return result.scalars().first()
 
-    async def create(self, author: AuthorModel) -> AuthorOut:
+    async def create(self, author: AuthorModel):
         self.session.add(author)
 
-        db_author = await self.select(author.id)
-        return AuthorOut.model_validate(db_author)
+        await self.session.flush()
+        return author

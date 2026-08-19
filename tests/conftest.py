@@ -3,10 +3,12 @@ import uuid
 import httpx
 import pytest
 import pytest_asyncio
+from aiokafka import AIOKafkaConsumer
 from httpx import AsyncClient, ASGITransport
 from redis.asyncio import Redis
 
 from testcontainers.core.container import DockerContainer
+from testcontainers.kafka import KafkaContainer
 from testcontainers.postgres import PostgresContainer
 from testcontainers.redis import RedisContainer
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
@@ -17,14 +19,79 @@ from src.session import get_session
 from src.dependencies.client import get_client
 from src.dependencies.user_service import get_service
 from src.client.client_main_user_service import ClientUserService
-from src.redis_cache import CacheService
+from src.config.redis_cache import CacheService
+from src.config.config import settings
 from src.services.user import UserService
 from src.services.saga_coordinator import SagaCoordinator
 from src.schemas.profile import ProfileCreate
 from src.schemas.user import UserCreate
-
+from src.workers.outbox_worker import OutboxWorker
 
 app = get_app()
+
+
+@pytest.fixture(scope="session")
+def kafka_container():
+    with KafkaContainer("confluentinc/cp-kafka:7.6.0") as kafka:
+        yield kafka
+
+
+@pytest.fixture(scope="session")
+def kafka_bootstrap_servers(kafka_container):
+    return kafka_container.get_bootstrap_server()
+
+
+@pytest.fixture
+def kafka_settings(kafka_bootstrap_servers, monkeypatch):
+    """Направляет Publisher/OutboxWorker на testcontainer вместо .env-адреса."""
+    host, port = kafka_bootstrap_servers.split(":")
+    monkeypatch.setattr(settings, "KAFKA_HOST", host)
+    monkeypatch.setattr(settings, "KAFKA_PORT", int(port))
+
+
+@pytest.fixture
+def worker_db(engine, monkeypatch):
+    """
+    OutboxWorker делает `from src.db import async_session_maker` — значит
+    держит собственную ссылку на объект, а не на модуль src.db. Патчить
+    src.db.async_session_maker бесполезно (воркер это не увидит), поэтому
+    патчим имя ровно там, где оно реально используется — в модуле воркера,
+    и направляем его на тот же engine, что использует фикстура `session`
+    из основного conftest (testcontainer-Postgres), а не на settings.postgres_url.
+    """
+    test_session_maker = async_sessionmaker(engine, expire_on_commit=False)
+    monkeypatch.setattr(
+        "src.workers.outbox_worker.async_session_maker", test_session_maker
+    )
+    return test_session_maker
+
+
+@pytest_asyncio.fixture
+async def outbox_worker(kafka_settings, worker_db):
+    worker = OutboxWorker()
+    await worker.start()
+    yield worker
+    await worker.stop()
+
+
+@pytest.fixture
+def kafka_topic():
+    # уникальный топик на тест, чтобы тесты не мешали друг другу
+    return f"test-outbox-{uuid.uuid4()}"
+
+
+@pytest_asyncio.fixture
+async def kafka_consumer(kafka_bootstrap_servers, kafka_topic):
+    consumer = AIOKafkaConsumer(
+        kafka_topic,
+        bootstrap_servers=kafka_bootstrap_servers,
+        auto_offset_reset="earliest",
+        enable_auto_commit=True,
+        group_id=f"test-group-{uuid.uuid4()}",
+    )
+    await consumer.start()
+    yield consumer
+    await consumer.stop()
 
 
 @pytest.fixture(scope="session")
