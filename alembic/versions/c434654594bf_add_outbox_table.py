@@ -60,6 +60,7 @@ def upgrade() -> None:
         sa.Column("attempts", sa.Integer(), server_default="0", nullable=False),
         sa.Column("next_attempt_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("last_error", sa.String(), nullable=True),
+        sa.Column('processing_token', sa.Uuid(), nullable=True),
         sa.PrimaryKeyConstraint("id"),
     )
 

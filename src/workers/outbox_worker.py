@@ -37,9 +37,8 @@ class OutboxWorker:
             repo = OutboxRepository(session)
 
             events = await repo.get_pending(limit=limit)
-
             events_ids = [event.id for event in events]
-            await repo.mark_processing(events_ids)
+            tokens = await repo.mark_processing(events_ids)
             await session.commit()
 
             return [
@@ -47,23 +46,48 @@ class OutboxWorker:
                     "id": event.id,
                     "topic": event.topic,
                     "payload": event.payload,
-                    "attempts": event.attempts,
+                    "processing_token": tokens[event.id],
                 }
                 for event in events
             ]
 
-    async def mark_sent(self, event_id: UUID) -> None:
+    async def mark_sent(self, event_id: UUID, processing_token: UUID) -> None:
         async with async_session_maker() as session:
             repo = OutboxRepository(session)
-            await repo.mark_sent(event_id)
+            applied = await repo.mark_sent(event_id, processing_token)
             await session.commit()
 
-    async def mark_failure(self, event_id: UUID, error: str) -> None:
+            if not applied:
+                logger.warning(
+                    f"[OutboxWorker] id={event_id} stale token on mark_sent, "
+                    f"event was reclaimed by another worker — ignoring"
+                )
+
+    async def mark_failure(self, event_id: UUID, processing_token: UUID, error: str) -> None:
         async with async_session_maker() as session:
             repo = OutboxRepository(session)
-            await repo.register_failure(event_id, error, decide=self.decide_retry_outcome)
+
+            attempts = await repo.increment_attempts(event_id, error, processing_token)
+            if attempts is None:
+                await session.commit()
+                logger.warning(
+                    f"[OutboxWorker] id={event_id} stale token on failure, "
+                    f"event was reclaimed by another worker — ignoring"
+                )
+                return
+
+            status, next_attempt_at = self.decide_retry_outcome(attempts)
+
+            if status == OutboxStatus.FAILED:
+                await repo.mark_failed(event_id, processing_token)
+                logger.warning(f"[OutboxWorker] id={event_id} exhausted retries, status=FAILED")
+            else:
+                await repo.reschedule(event_id, next_attempt_at, processing_token)
+                logger.info(
+                    f"[OutboxWorker] id={event_id} attempt={attempts} scheduled retry"
+                )
+
             await session.commit()
-            logger.info(f"[OutboxWorker] id={event_id} failure registered")
 
     async def process_batch(self) -> int:
         events = await self.claim_events()
@@ -77,11 +101,11 @@ class OutboxWorker:
                     payload=event["payload"],
                     key=str(event["id"]),
                 )
-                await self.mark_sent(event["id"])
+                await self.mark_sent(event["id"], event["processing_token"])
                 logger.info(f"[OutboxWorker] sent id={event['id']} topic={event['topic']}")
             except Exception as e:
                 logger.exception(f"[OutboxWorker] failed id={event['id']}: {e}")
-                await self.mark_failure(event["id"], event["attempts"], str(e))
+                await self.mark_failure(event["id"], event["processing_token"], str(e))
 
         return len(events)
 

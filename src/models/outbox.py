@@ -2,6 +2,8 @@ import datetime
 import enum
 import uuid
 import sqlalchemy as sa
+
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.dialects.postgresql import JSONB
 from src.models.base import Base
@@ -31,3 +33,7 @@ class OutboxEvent(Base):
     attempts: Mapped[int] = mapped_column(sa.Integer(), default=0, server_default="0", nullable=False)
     next_attempt_at: Mapped[datetime.datetime | None] = mapped_column(sa.DateTime(timezone=True), nullable=True)
     last_error: Mapped[str | None] = mapped_column(sa.String(), nullable=True)
+
+    processing_token: Mapped[uuid.UUID | None] = mapped_column(
+        sa.dialects.postgresql.UUID(as_uuid=True), nullable=True
+    )

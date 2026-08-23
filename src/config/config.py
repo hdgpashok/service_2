@@ -3,6 +3,7 @@ from typing import ClassVar
 
 import httpx
 
+from datetime import timedelta
 from pydantic import PostgresDsn, Field
 from pydantic_settings import BaseSettings
 
@@ -21,6 +22,8 @@ class Settings(BaseSettings):
     BASE_KAFKA_DELAY: int = Field(env="BASE_KAFKA_DELAY")
 
     MAX_RETRIES: int = Field(env='MAX_RETRIES')
+
+    PROCESSING_TIMEOUT: int = Field(env="PROCESSING_TIMEOUT")
 
     HTTP_TIMEOUT: ClassVar[httpx.Timeout] = httpx.Timeout(
         connect=1.0,
