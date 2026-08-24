@@ -17,7 +17,6 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # authors first (books FK -> authors)
     op.create_table(
         "authors",
         sa.Column("id", sa.Uuid(), nullable=False),

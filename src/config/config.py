@@ -3,7 +3,6 @@ from typing import ClassVar
 
 import httpx
 
-from datetime import timedelta
 from pydantic import PostgresDsn, Field
 from pydantic_settings import BaseSettings
 

@@ -17,24 +17,15 @@ class OutboxRepository:
 
     async def get_pending(self, limit: int = 20) -> list[OutboxEvent]:
         now = datetime.now(timezone.utc)
-        stuck_before = now - timedelta(minutes=settings.PROCESSING_TIMEOUT)
 
         stmt = (
             select(OutboxEvent)
             .where(
+                OutboxEvent.status.in_([OutboxStatus.PENDING, OutboxStatus.PROCESSING]),
                 or_(
-                    and_(
-                        OutboxEvent.status == OutboxStatus.PENDING,
-                        or_(
-                            OutboxEvent.next_attempt_at.is_(None),
-                            OutboxEvent.next_attempt_at <= now,
-                            ),
-                        ),
-                    and_(
-                        OutboxEvent.status == OutboxStatus.PROCESSING,
-                        OutboxEvent.next_attempt_at <= stuck_before,
-                        ),
-                )
+                    OutboxEvent.next_attempt_at.is_(None),
+                    OutboxEvent.next_attempt_at <= now,
+                    ),
             )
             .order_by(OutboxEvent.created_ad)
             .limit(limit)
@@ -62,13 +53,17 @@ class OutboxRepository:
         return {row.id: row.processing_token for row in result}
 
     async def mark_sent(self, event_id: uuid.UUID, processing_token: uuid.UUID) -> None:
-        await self.session.execute(
+        result = await self.session.execute(
             update(OutboxEvent)
             .where(OutboxEvent.id == event_id,
                    OutboxEvent.processing_token == processing_token
                    )
-            .values(status=OutboxStatus.SENT)
+            .values(
+                status=OutboxStatus.SENT,
+                processing_token=None
+            )
         )
+        return result.rowcount > 0
 
     async def mark_failed(self, event_id: uuid.UUID, processing_token: uuid.UUID) -> None:
         await self.session.execute(
