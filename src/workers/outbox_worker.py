@@ -2,6 +2,8 @@ import asyncio
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
+from src.schemas.claim_event import ClaimEventSchema
+from src.mappers.events_mapper import to_claimed_event
 from src.config.kafka_producer import KafkaProducer
 from src.config.config import settings
 from src.models.outbox import OutboxStatus
@@ -15,6 +17,7 @@ logger = get_logger("outbox_worker")
 class OutboxWorker:
     def __init__(self) -> None:
         self.publisher = KafkaProducer()
+        self.session_maker = async_session_maker
 
     async def start(self) -> None:
         await self.publisher.start_producer()
@@ -32,8 +35,8 @@ class OutboxWorker:
         next_attempt_at = datetime.now(timezone.utc) + timedelta(seconds=delay)
         return OutboxStatus.PENDING, next_attempt_at
 
-    async def claim_events(self, limit: int = 20):
-        async with async_session_maker() as session:
+    async def claim_events(self, limit: int = 20) -> list[ClaimEventSchema]:
+        async with self.session_maker() as session:
             repo = OutboxRepository(session)
 
             events = await repo.get_pending(limit=limit)
@@ -42,17 +45,12 @@ class OutboxWorker:
             await session.commit()
 
             return [
-                {
-                    "id": event.id,
-                    "topic": event.topic,
-                    "payload": event.payload,
-                    "processing_token": tokens[event.id],
-                }
+                to_claimed_event(event, tokens[event.id])
                 for event in events
             ]
 
     async def mark_sent(self, event_id: UUID, processing_token: UUID) -> None:
-        async with async_session_maker() as session:
+        async with self.session_maker() as session:
             repo = OutboxRepository(session)
             applied = await repo.mark_sent(event_id, processing_token)
             await session.commit()
@@ -64,7 +62,7 @@ class OutboxWorker:
                 )
 
     async def mark_failure(self, event_id: UUID, processing_token: UUID, error: str) -> None:
-        async with async_session_maker() as session:
+        async with self.session_maker() as session:
             repo = OutboxRepository(session)
 
             attempts = await repo.increment_attempts(event_id, error, processing_token)
@@ -79,7 +77,7 @@ class OutboxWorker:
             status, next_attempt_at = self.decide_retry_outcome(attempts)
 
             if status == OutboxStatus.FAILED:
-                await repo.mark_failed(event_id, processing_token)
+                await repo.mark_failed(event_id, processing_token, error)
                 logger.warning(f"[OutboxWorker] id={event_id} exhausted retries, status=FAILED")
             else:
                 await repo.reschedule(event_id, next_attempt_at, processing_token)
@@ -97,15 +95,15 @@ class OutboxWorker:
         for event in events:
             try:
                 await self.publisher.send(
-                    topic=event["topic"],
-                    payload=event["payload"],
-                    key=str(event["id"]),
+                    topic=event.topic,
+                    payload=event.payload,
+                    key=str(event.id),
                 )
-                await self.mark_sent(event["id"], event["processing_token"])
-                logger.info(f"[OutboxWorker] sent id={event['id']} topic={event['topic']}")
+                await self.mark_sent(event.id, event.processing_token)
+                logger.info(f"[OutboxWorker] sent id={event.id} topic={event.topic}")
             except Exception as e:
-                logger.exception(f"[OutboxWorker] failed id={event['id']}: {e}")
-                await self.mark_failure(event["id"], event["processing_token"], str(e))
+                logger.exception(f"[OutboxWorker] failed id={event.id}: {e}")
+                await self.mark_failure(event.id, event.id, str(e))
 
         return len(events)
 

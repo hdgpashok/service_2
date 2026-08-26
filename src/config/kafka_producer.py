@@ -44,7 +44,8 @@ class KafkaProducer:
             await producer.stop()
 
     async def send(self, topic: str, payload: dict, key: str | None = None):
-        if self.producer is None:
+        producer = self.producer
+        if producer is None:
             raise RuntimeError(
                 "KafkaProducer.send() called before start_producer() — "
                 "producer is not initialized"
@@ -53,7 +54,7 @@ class KafkaProducer:
         self._drained.clear()
 
         try:
-            await self.producer.send_and_wait(
+            await producer.send_and_wait(
                 topic=topic,
                 value=payload,
                 key=key.encode() if key else None,

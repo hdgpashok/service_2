@@ -12,6 +12,9 @@ class OutboxRepository:
     def __init__(self, session: AsyncSession):
         self.session = session
 
+    async def flush(self) -> None:
+        await self.session.flush()
+
     async def create(self, payload: OutboxEvent) -> None:
         self.session.add(payload)
 
@@ -65,13 +68,17 @@ class OutboxRepository:
         )
         return result.rowcount > 0
 
-    async def mark_failed(self, event_id: uuid.UUID, processing_token: uuid.UUID) -> None:
+    async def mark_failed(self, event_id: uuid.UUID, processing_token: uuid.UUID, error: str) -> None:
         await self.session.execute(
             update(OutboxEvent)
             .where(OutboxEvent.id == event_id,
                    OutboxEvent.processing_token == processing_token
                    )
-            .values(status=OutboxStatus.FAILED)
+            .values(
+                status=OutboxStatus.FAILED,
+                processing_token=None,
+                last_error=error
+            )
         )
 
     async def reschedule(self, event_id: uuid.UUID, next_attempt_at: datetime, processing_token: uuid.UUID):
