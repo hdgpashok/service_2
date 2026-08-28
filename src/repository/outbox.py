@@ -12,8 +12,8 @@ class OutboxRepository:
     def __init__(self, session: AsyncSession):
         self.session = session
 
-    async def flush(self) -> None:
-        await self.session.flush()
+    async def commit(self) -> None:
+        await self.session.commit()
 
     async def create(self, payload: OutboxEvent) -> None:
         self.session.add(payload)
