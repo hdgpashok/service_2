@@ -15,7 +15,14 @@ class Settings(BaseSettings):
     REDIS_PORT: int = Field(env='REDIS_PORT')
     REDIS_DB: int = Field(env='REDIS_DB')
 
+    KAFKA_HOST: str = Field(env="KAFKA_HOST")
+    KAFKA_PORT: int = Field(env="KAFKA_PORT")
+    KAFKA_TOPIC: str = Field(env="KAFKA_TOPIC")
+    BASE_KAFKA_DELAY: int = Field(env="BASE_KAFKA_DELAY")
+
     MAX_RETRIES: int = Field(env='MAX_RETRIES')
+
+    PROCESSING_TIMEOUT: int = Field(env="PROCESSING_TIMEOUT")
 
     HTTP_TIMEOUT: ClassVar[httpx.Timeout] = httpx.Timeout(
         connect=1.0,

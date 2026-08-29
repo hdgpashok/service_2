@@ -1,52 +1,74 @@
-from unittest.mock import AsyncMock, patch
 import pytest
+from sqlalchemy import select
 
-from src.services.user import UserService
-
-
-@pytest.mark.asyncio
-async def test_create_user_success(mock_id, mock_create_user, mock_session):
-    mock_client = AsyncMock()
-    mock_client.user_post_request = AsyncMock(return_value=None)
-
-    with patch("src.models.user.uuid.uuid4", return_value=mock_id):
-        result = await UserService.create_user(
-            mock_create_user, mock_session, mock_client
-        )
-
-    assert result.id == mock_id
-    assert result.first_name == mock_create_user.first_name
+from src.models.outbox import OutboxEvent, OutboxStatus
+from src.exceptions.not_found import ObjectNotFound
 
 
 @pytest.mark.asyncio
-async def test_get_user_success(mock_id, mock_session, cache):
-    mock_client = AsyncMock()
-    mock_client.user_get_request = AsyncMock(return_value={
-        "id": str(mock_id),
-        "title": "external_title",
-        "profile": {
-            "id": str(mock_id),
-            "title": "external_title",
-            "bio": "external_bio"
-        }
-    })
+async def test_create_user_success(user_service, user_create_data, session):
+    result = await user_service.create_user(user_create_data, session)
+    await session.commit()
 
-    with patch("src.repository.user.UserRepository.select") as mock_select:
-        mock_select.return_value = {
-            "id": mock_id,
-            "first_name": "internal_first",
-            "last_name": "internal_last",
+    assert result.id is not None
+    assert result.first_name == "Ivan"
+    assert result.last_name == "Ivanov"
+    assert result.title == "developer"
+    assert result.profile.nickname == "ivan"
+    assert result.profile.title == "profile_title"
+    assert result.profile.bio == "bio"
+
+
+@pytest.mark.asyncio
+async def test_create_user_writes_outbox(user_service, user_create_data, session):
+    result = await user_service.create_user(user_create_data, session)
+    await session.commit()
+
+    rows = await session.execute(select(OutboxEvent))
+    events = list(rows.scalars().all())
+
+    assert len(events) == 1
+    event = events[0]
+
+    assert event.status == OutboxStatus.PENDING
+    assert event.payload["id"] == str(result.id) or event.payload["id"] == result.id
+    assert event.payload["title"] == "developer"
+    assert event.payload["profile"]["title"] == "profile_title"
+    assert event.payload["profile"]["bio"] == "bio"
+
+
+@pytest.mark.asyncio
+async def test_get_user_success(user_service, user_create_data, session, wiremock_stub, mock_service_url):
+    created = await user_service.create_user(user_create_data, session)
+    await session.commit()
+
+    await wiremock_stub(
+        endpoint=f"/api/v1/users_profiles/users/{created.id}",
+        method="GET",
+        response_json={
+            "id": str(created.id),
+            "title": "developer",
             "profile": {
-                "id": mock_id,
-                "nickname": "internal_nick"
-            }
-        }
-        service = UserService(cache=cache)
-        result = await service.get_user(mock_id, mock_session, mock_client)
+                "id": str(created.profile.id),
+                "title": "profile_title",
+                "bio": "bio",
+            },
+        },
+        status=200,
+    )
 
-    assert result.id == mock_id
-    assert result.first_name == "internal_first"
-    assert result.last_name == "internal_last"
-    assert result.title == "external_title"
-    assert result.profile.nickname == "internal_nick"
-    assert result.profile.title == "external_title"
+    result = await user_service.get_user(created.id, session)
+
+    assert result.id == created.id
+    assert result.first_name == "Ivan"
+    assert result.last_name == "Ivanov"
+    assert result.title == "developer"
+    assert result.profile.nickname == "ivan"
+    assert result.profile.title == "profile_title"
+    assert result.profile.bio == "bio"
+
+
+@pytest.mark.asyncio
+async def test_get_user_not_found(user_service, mock_id, session):
+    with pytest.raises(ObjectNotFound):
+        await user_service.get_user(mock_id, session)

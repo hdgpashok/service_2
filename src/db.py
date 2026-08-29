@@ -1,6 +1,6 @@
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 
-from src.utils.config import settings
+from src.config.config import settings
 
 
 engine = create_async_engine(str(settings.postgres_url), echo=False)

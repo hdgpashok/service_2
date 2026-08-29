@@ -1,7 +1,7 @@
 import uuid
 
 from src.services.saga_coordinator import SagaCoordinator
-from src.utils.mapping import merge_user_data, create_new_user, create_external_schema
+from src.mappers.user_mapper import UserMapper
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -9,7 +9,7 @@ from src.exceptions.server_error import ServerError
 from src.exceptions.not_found import ObjectNotFound
 
 from src.client.client_main_user_service import ClientUserService
-from src.redis_cache import CacheService
+from src.config.redis_cache import CacheService
 
 from src.schemas.user import UserCreate, UserOutput
 from src.repository.user import UserRepository
@@ -31,8 +31,8 @@ class UserService:
             user: UserCreate,
             session: AsyncSession,
     ):
-        external_user = create_external_schema(user)
-        new_user = create_new_user(user, external_user)
+        external_user = UserMapper.create_external_schema(user)
+        new_user = UserMapper.create_new_user(user, external_user)
 
         await self.coordinator.create_user_saga(external_user, new_user, session)
 
@@ -65,7 +65,7 @@ class UserService:
         external = await self.client.user_get_request(user_id)
 
         try:
-            result = merge_user_data(internal, external)
+            result = UserMapper.merge_user_data(internal, external)
 
             await self.cache.set(key, result.model_dump(), expire=3600)
             user_service_logger.info(f'[GET USER] User merged and cached user_id={user_id}')

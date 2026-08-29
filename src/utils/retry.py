@@ -2,7 +2,7 @@ import logging
 from typing import Callable, Any
 from functools import wraps
 
-from src.utils.config import settings
+from src.config.config import settings
 from src.utils.logger import get_logger
 from src.utils.timeout import timeout_with_jitter
 from src.exceptions.timeout_error import ServerTimeoutError

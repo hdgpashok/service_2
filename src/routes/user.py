@@ -5,7 +5,7 @@ from starlette.status import HTTP_201_CREATED, HTTP_200_OK
 from fastapi import APIRouter, Depends
 
 from src.dependencies.client import get_client, ClientDep
-from session import get_session, SessionDep
+from src.session import get_session, SessionDep
 from src.dependencies.user_service import get_service, ServiceDep
 from src.schemas.user import UserCreate
 
